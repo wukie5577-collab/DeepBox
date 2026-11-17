@@ -82,7 +82,7 @@
   <div class="card">
     <h1>抗晕挑战</h1>
     <div class="sub">你能在隧道里撑多久？</div>
-    <p>在高速隧道里<b>左右滑动屏幕</b>，让飞船绕着管壁移动，从光环的缺口穿过去（电脑上用 ← → 或拖动鼠标）。贴着边缘穿过算<b>擦边</b>，有额外加分。</p>
+    <p>在高速隧道里，<b>手指按住屏幕指向哪里，飞船就去哪里</b>：它会沿着管壁跑到你手指的方向，从光环的缺口穿过去（电脑上直接移动鼠标，或用 ← →）。贴着边缘穿过算<b>擦边</b>，有额外加分。</p>
     <p>每一关都会加入一种最容易让人晕的视觉把戏。每隔 30 秒，画面会冻结，问你有多晕。</p>
     <div class="warn">⚠️ 这个游戏是故意让人晕的。请<b>坐着</b>玩，手机离眼睛 20–30 cm 效果最强。有光敏性癫痫、前庭或平衡问题、偏头痛或正在怀孕，请不要玩。感到不适就随时按右上角的「停」。</div>
     <button class="btn" id="go">我坐好了，开始</button>
@@ -115,7 +115,7 @@ import * as THREE from 'three';
 const $ = id => document.getElementById(id);
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer:coarse)').matches ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
@@ -213,7 +213,7 @@ scene.add(orbit);
 
 /* ---------------- levels ---------------- */
 const LEVELS = [
-  { name: '热身', desc: '滑动屏幕，绕着管壁躲开光环。贴着边缘穿过算擦边，有加分。', col: 0x4fe3ff, col2: 0x1b3cff, ring: 0xff3d8b, fx: {} },
+  { name: '热身', desc: '手指指向哪，飞船就去哪。躲开光环，贴着边缘穿过算擦边，有加分。', col: 0x4fe3ff, col2: 0x1b3cff, ring: 0xff3d8b, fx: {} },
   { name: '翻滚', desc: '整个世界开始旋转。眼睛说你在转，身体说没有。', col: 0xff5fd2, col2: 0x5a1bff, ring: 0x3dffb8, fx: { roll: 1 } },
   { name: '摇摆', desc: '0.2 Hz 的晃动，晕船最爱的频率。', col: 0xffc04f, col2: 0xff3b1b, ring: 0x4fa8ff, fx: { wobble: 1 } },
   { name: '弯道', desc: '隧道开始拐弯，可你的身体一直是直的。', col: 0x8dff5a, col2: 0x0a7a4a, ring: 0xff5f5f, fx: { bend: 1, gyro: 1 } },
@@ -270,10 +270,18 @@ function newState() {
 S = newState();
 
 /* ---------------- input ---------------- */
-let dragging = false, lastX = 0; const keys = {};
-addEventListener('pointerdown', e => { if (e.target.closest('button,.sheet,.overlay')) return; dragging = true; lastX = e.clientX; });
-addEventListener('pointermove', e => { if (!dragging) return; S.phiT += (e.clientX - lastX) / innerWidth * Math.PI * 1.5; lastX = e.clientX; });
-addEventListener('pointerup', () => dragging = false); addEventListener('pointercancel', () => dragging = false);
+// absolute aiming: the ship goes to wherever your finger points (works through roll / sway / bends)
+let dragging = false, aim = null; const keys = {};
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), shipPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -SHIP_Z), hitP = new THREE.Vector3();
+const blocked = e => e.target.closest && e.target.closest('button,.sheet,.overlay');
+addEventListener('pointerdown', e => { if (blocked(e)) return; dragging = true; aim = { x: e.clientX, y: e.clientY }; });
+addEventListener('pointermove', e => {
+  if (blocked(e)) return;
+  if (dragging || e.pointerType === 'mouse') aim = { x: e.clientX, y: e.clientY };
+});
+const release = e => { dragging = false; if (e.pointerType !== 'mouse') aim = null; };
+addEventListener('pointerup', release); addEventListener('pointercancel', release);
+const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
 addEventListener('keydown', e => { keys[e.key] = true; }); addEventListener('keyup', e => { keys[e.key] = false; });
 let gyro = null, gyro0 = null;
 addEventListener('deviceorientation', e => { if (e.beta == null) return; gyro = { b: e.beta, g: e.gamma }; if (!gyro0) gyro0 = { ...gyro }; });
@@ -429,7 +437,7 @@ function frame() {
     demoT += dt; S.phiT = -Math.PI / 2 + Math.sin(demoT * 0.8) * 1.2;
     for (const k in S.fx) S.fx[k] *= 0.97;
   }
-  S.phi += (S.phiT - S.phi) * Math.min(1, dt * 16);
+  S.phi += (S.phiT - S.phi) * Math.min(1, dt * 24);
 
   // speed
   const d = difficulty();
@@ -473,8 +481,8 @@ function frame() {
   for (let i = 0; i < SN; i++) {
     let z = sBase[i * 3 + 2]; if (!S.frozen) { z += v * dt; if (z > 2) z -= LEN; sBase[i * 3 + 2] = z; }
     const x = sBase[i * 3], y = sBase[i * 3 + 1];
-    bendAt(z, tmpB); sPos.set([x + tmpB.x, y + tmpB.y, z], i * 6);
-    bendAt(z - len, tmpB); sPos.set([x + tmpB.x, y + tmpB.y, z - len], i * 6 + 3);
+    const j = i * 6; bendAt(z, tmpB); sPos[j] = x + tmpB.x; sPos[j + 1] = y + tmpB.y; sPos[j + 2] = z;
+    bendAt(z - len, tmpB); sPos[j + 3] = x + tmpB.x; sPos[j + 4] = y + tmpB.y; sPos[j + 5] = z - len;
   }
   sGeo.attributes.position.needsUpdate = true;
   streaks.material.opacity = 0.25 + Math.min(0.5, v / 120);
@@ -505,6 +513,15 @@ function frame() {
   }
   S.fovKick *= Math.pow(0.02, dt);
   fitCamera(S.fovKick + (S.surge - 1) * 10 * S.fx.surge);
+  if (aim && live) {
+    camera.updateMatrixWorld();
+    ndc.set(aim.x / innerWidth * 2 - 1, -(aim.y / innerHeight) * 2 + 1);
+    ray.setFromCamera(ndc, camera);
+    if (ray.ray.intersectPlane(shipPlane, hitP)) {
+      bendAt(SHIP_Z, tmpB); const dx = hitP.x - tmpB.x, dy = hitP.y - tmpB.y;
+      if (dx * dx + dy * dy > 0.5) S.phiT = S.phi + wrapA(Math.atan2(dy, dx) - S.phi);
+    }
+  }
 
   // remove references
   const blind = S.fx.blind;
