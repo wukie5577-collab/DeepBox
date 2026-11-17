@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>深盒 · 裸眼3D弹珠</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;
+    font-family:system-ui,-apple-system,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;color:#e8f0ff;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  canvas{display:block}
+  #hud{position:fixed;top:calc(env(safe-area-inset-top) + 10px);left:12px;right:12px;display:flex;
+    justify-content:space-between;pointer-events:none;font-size:13px;letter-spacing:.04em;z-index:3}
+  .pill{background:rgba(8,14,28,.55);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
+    padding:6px 11px;border-radius:999px;border:1px solid rgba(140,200,255,.18)}
+  #score{font-variant-numeric:tabular-nums;font-weight:600}
+  #hint{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 72px);transform:translateX(-50%);
+    font-size:13px;opacity:.85;transition:opacity 1.2s;pointer-events:none;white-space:nowrap;z-index:3}
+  #gear{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom) + 12px);width:44px;height:44px;
+    border-radius:50%;border:1px solid rgba(140,200,255,.25);background:rgba(8,14,28,.6);color:#cfe6ff;
+    font-size:20px;z-index:4;cursor:pointer;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+  #panel{position:fixed;right:12px;bottom:calc(env(safe-area-inset-bottom) + 64px);width:min(300px,calc(100vw - 24px));
+    background:rgba(8,14,28,.82);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);
+    border:1px solid rgba(140,200,255,.2);border-radius:16px;padding:14px 14px 12px;font-size:13px;z-index:4;
+    transform:translateY(12px);opacity:0;pointer-events:none;transition:.25s}
+  #panel.open{transform:none;opacity:1;pointer-events:auto}
+  #panel label{display:block;margin-bottom:12px}
+  #panel label.row{display:flex;align-items:center;gap:8px}
+  #panel input[type=range]{width:100%;margin-top:6px;accent-color:#5fd0ff}
+  #panel .btns{display:flex;gap:8px;flex-wrap:wrap}
+  button.b{flex:1;padding:9px 10px;border-radius:10px;border:1px solid rgba(140,200,255,.3);
+    background:rgba(60,140,255,.15);color:#e8f0ff;font-size:13px;cursor:pointer}
+  #status{margin-top:10px;font-size:12px;opacity:.75;line-height:1.45}
+  #start{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:10;
+    background:radial-gradient(ellipse at 50% 40%,rgba(4,10,24,.35),rgba(0,0,0,.78));transition:opacity .6s}
+  #start.hide{opacity:0;pointer-events:none}
+  .card{width:min(360px,calc(100vw - 40px));text-align:center;padding:26px 22px;border-radius:22px;
+    background:rgba(8,14,28,.62);-webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border:1px solid rgba(140,200,255,.22)}
+  .card h1{margin:0 0 4px;font-size:34px;letter-spacing:.3em;font-weight:700;
+    background:linear-gradient(90deg,#9ff0ff,#7aa8ff 60%,#e59bff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .card .sub{opacity:.7;font-size:13px;margin-bottom:16px;letter-spacing:.15em}
+  .card p{font-size:13.5px;line-height:1.65;opacity:.9;margin:0 0 16px;text-align:left}
+  .card .go{display:block;width:100%;padding:13px;border-radius:14px;border:0;font-size:16px;font-weight:600;
+    color:#04101f;background:linear-gradient(90deg,#8ff3ff,#7ab0ff);cursor:pointer;margin-bottom:10px}
+  .card .go2{display:block;width:100%;padding:11px;border-radius:14px;font-size:14px;cursor:pointer;
+    color:#dcecff;background:transparent;border:1px solid rgba(140,200,255,.35)}
+  .card .small{font-size:11.5px;opacity:.55;margin-top:12px;line-height:1.5;text-align:left}
+</style>
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+} }
+</script>
+</head>
+<body>
+<div id="hud"><div class="pill" id="score">★ 0</div><div class="pill" id="mode">演示</div></div>
+<div id="hint">倾斜手机 · 把弹珠滚出屏幕，去碰发光的球</div>
+<button id="gear" aria-label="设置">⚙︎</button>
+<div id="panel">
+  <label>视差增益 <span id="gainV">1.00</span><input type="range" id="gain" min="0" max="2" step="0.05" value="1"></label>
+  <label>观看距离 <span id="distV">30</span> cm<input type="range" id="dist" min="15" max="90" step="1" value="30"></label>
+  <label class="row"><input type="checkbox" id="bars" checked> 显示“破框”白条</label>
+  <div class="btns"><button class="b" id="calib">重新校准</button><button class="b" id="faceBtn">开启摄像头头追</button></div>
+  <div id="status"></div>
+</div>
+<div id="start">
+  <div class="card">
+    <h1>深盒</h1>
+    <div class="sub">把手机当成一扇窗</div>
+    <p>手机屏幕后面藏着一个很深的盒子。<b>倾斜手机</b>，玻璃弹珠就会顺着真实的重力滚动；把它们滚到伸出屏幕的台面上，去碰发光的球。<br>头部保持不动，慢慢转动手机，感受盒子的深度。</p>
+    <button class="go" id="go">开始</button>
+    <button class="go2" id="goFace">开始 + 摄像头头追</button>
+    <div class="small">电脑上：移动鼠标模拟倾斜。没有陀螺仪权限时（比如在 Claude 的预览框里），手机会自动切换为拖动操作。</div>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+
+/* ---------- renderer / scene ---------- */
+const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x01030a);
+const pmrem = new THREE.PMREMGenerator(renderer);
+scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+
+const camera = new THREE.PerspectiveCamera();
+const DEG = Math.PI / 180;
+
+/* ---------- physical dimensions (cm) ---------- */
+const isTouch = matchMedia('(pointer:coarse)').matches;
+const CM_PER_PX = isTouch ? 0.0165 : 0.0265;
+const settings = { gain: 1, dist: isTouch ? 30 : 55, bars: true, hfov: 60 };
+let W, H, D, F, yF, R, M, G;
+function computeDims() {
+  W = innerWidth * CM_PER_PX; H = innerHeight * CM_PER_PX;
+  M = Math.min(W, H);
+  D = 1.25 * Math.max(W, H);          // depth behind the screen
+  F = 0.6 * M;                         // ledge protruding in front of the screen
+  yF = -H / 2 * (1 - F / settings.dist) + 0.06 * H; // ledge top, so the front edge stays in view
+  R = 0.075 * M;                       // marble radius
+  G = 2.6 * M;                         // gameplay gravity (cm/s^2)
+}
+computeDims();
+
+/* ---------- textures ---------- */
+function gridTex(bg, line, accent) {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 128, 128);
+  if (accent) { g.fillStyle = 'rgba(120,200,255,0.05)'; g.fillRect(0, 0, 64, 64); g.fillRect(64, 64, 64, 64); }
+  g.strokeStyle = line; g.lineWidth = 3; g.strokeRect(0, 0, 128, 128);
+  g.strokeStyle = line.replace('1)', '0.25)'); g.lineWidth = 1;
+  g.beginPath(); g.moveTo(64, 0); g.lineTo(64, 128); g.moveTo(0, 64); g.lineTo(128, 64); g.stroke();
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace;
+  t.anisotropy = renderer.capabilities.getMaxAnisotropy();
+  return t;
+}
+const wallTex = gridTex('#040812', 'rgba(80,190,255,1)');
+const floorTex = gridTex('#070c1a', 'rgba(130,235,255,1)', true);
+
+function marbleTex(base, ribbon) {
+  const c = document.createElement('canvas'); c.width = 256; c.height = 128;
+  const g = c.getContext('2d');
+  g.fillStyle = base; g.fillRect(0, 0, 256, 128);
+  for (let k = 0; k < 3; k++) {
+    g.beginPath();
+    for (let x = 0; x <= 256; x += 4) {
+      const y = 64 + Math.sin(x / 256 * Math.PI * 2 * (k + 1) + k * 2) * (28 - k * 6);
+      x ? g.lineTo(x, y) : g.moveTo(x, y);
+    }
+    g.strokeStyle = k === 1 ? 'rgba(255,255,255,0.9)' : ribbon; g.lineWidth = 10 - k * 3; g.stroke();
+  }
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t;
+}
+function dotTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'); const gr = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.3, 'rgba(255,255,255,0.5)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+const DOT = dotTex();
+
+/* ---------- lights ---------- */
+scene.add(new THREE.HemisphereLight(0x9fc8ff, 0x0a0a20, 0.35));
+const spot = new THREE.SpotLight(0xffffff, 2.6, 0, 0.95, 0.65, 0);
+spot.castShadow = true; spot.shadow.mapSize.set(1024, 1024); spot.shadow.bias = -0.0004;
+scene.add(spot, spot.target);
+const orbLight = new THREE.PointLight(0xff7ad9, 2.2, 0, 0);
+scene.add(orbLight);
+
+/* ---------- room (rebuilt on resize) ---------- */
+let room = null, bars = null, dust = null, decor = [];
+function stdWall(w, h) {
+  const t = wallTex.clone(); t.needsUpdate = true; t.repeat.set(w / (M / 4), h / (M / 4));
+  return new THREE.MeshStandardMaterial({ map: t, emissiveMap: t, emissive: 0x2f8cff, emissiveIntensity: 0.9, roughness: 0.85, envMapIntensity: 0.15 });
+}
+function build() {
+  if (room) { room.traverse(o => { o.geometry && o.geometry.dispose(); }); scene.remove(room); }
+  room = new THREE.Group(); scene.add(room);
+  const add = (m, x, y, z, rx = 0, ry = 0) => { m.position.set(x, y, z); m.rotation.set(rx, ry, 0); m.receiveShadow = true; room.add(m); return m; };
+  add(new THREE.Mesh(new THREE.PlaneGeometry(W, H), stdWall(W, H)), 0, 0, -D);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(D, H), stdWall(D, H)), -W / 2, 0, -D / 2, 0, Math.PI / 2);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(D, H), stdWall(D, H)), W / 2, 0, -D / 2, 0, -Math.PI / 2);
+  add(new THREE.Mesh(new THREE.PlaneGeometry(W, D), stdWall(W, D)), 0, H / 2, -D / 2, Math.PI / 2, 0);
+
+  // floor slab that pokes out through the screen
+  const bottom = -H / 2 - 3, T = yF - bottom, L = D + F;
+  const tt = floorTex.clone(); tt.needsUpdate = true; tt.repeat.set(W / (M / 4), L / (M / 4));
+  const topMat = new THREE.MeshStandardMaterial({ map: tt, emissiveMap: tt, emissive: 0x46d7ff, emissiveIntensity: 0.55, roughness: 0.45, metalness: 0.1, envMapIntensity: 0.5 });
+  const side = new THREE.MeshStandardMaterial({ color: 0x060a16, emissive: 0x0d2147, emissiveIntensity: 0.7, roughness: 0.7 });
+  add(new THREE.Mesh(new THREE.BoxGeometry(W, T, L), [side, side, topMat, side, side, side]), 0, bottom + T / 2, -D + L / 2);
+
+  // glowing lip on the protruding edge
+  const rod = Math.max(0.02 * M, 0.06);
+  const lipMat = new THREE.MeshBasicMaterial({ color: 0x9ff4ff, toneMapped: false });
+  const lip = new THREE.Mesh(new THREE.BoxGeometry(W, rod, rod), lipMat);
+  lip.position.set(0, yF + rod / 2, F - rod / 2); room.add(lip);
+  for (const s of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.BoxGeometry(rod, rod, F), lipMat);
+    m.position.set(s * (W / 2 - rod / 2), yF + rod / 2, F / 2); room.add(m);
+  }
+
+  // "frame-break" bars living exactly on the screen plane
+  bars = new THREE.Group();
+  const bw = Math.max(W * 0.03, 0.12);
+  for (const s of [-1, 1]) {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(bw, H * 1.05), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }));
+    m.position.set(s * W * 0.32, 0, 0); bars.add(m);
+  }
+  bars.visible = settings.bars; room.add(bars);
+
+  // floating dust filling the volume
+  const N = 420, pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    pos[i * 3] = (Math.random() - 0.5) * W; pos[i * 3 + 1] = yF + Math.random() * (H / 2 - yF);
+    pos[i * 3 + 2] = -D + Math.random() * (D + F * 0.4);
+  }
+  const dg = new THREE.BufferGeometry(); dg.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  dust = new THREE.Points(dg, new THREE.PointsMaterial({ size: 0.025 * M, map: DOT, color: 0x9fdcff, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+  room.add(dust);
+
+  // floating sculptures at different depths (one pokes out of the screen)
+  decor = [];
+  const spec = [
+    { g: new THREE.IcosahedronGeometry(0.16 * M, 0), p: [-0.22 * W, 0.28 * H, -0.78 * D], c: 0x7ab0ff },
+    { g: new THREE.OctahedronGeometry(0.12 * M, 0), p: [0.25 * W, 0.12 * H, -0.42 * D], c: 0xe59bff },
+    { g: new THREE.TorusKnotGeometry(0.075 * M, 0.024 * M, 90, 12), p: [0.05 * W, 0.24 * H, 0.55 * F], c: 0x8ff3ff },
+  ];
+  for (const s of spec) {
+    const mesh = new THREE.Mesh(s.g, new THREE.MeshPhysicalMaterial({ color: s.c, metalness: 0.9, roughness: 0.18, clearcoat: 1, envMapIntensity: 1.6, emissive: s.c, emissiveIntensity: 0.12 }));
+    mesh.castShadow = true;
+    const edges = new THREE.LineSegments(new THREE.EdgesGeometry(s.g), new THREE.LineBasicMaterial({ color: s.c, transparent: true, opacity: 0.9 }));
+    mesh.add(edges); mesh.position.set(...s.p); mesh.userData.base = mesh.position.clone(); mesh.userData.ph = Math.random() * 6;
+    room.add(mesh); decor.push(mesh);
+  }
+
+  spot.position.set(0, H / 2 * 0.92, F * 0.35);
+  spot.target.position.set(0, yF, -D * 0.4);
+  spot.shadow.camera.near = 1; spot.shadow.camera.far = D * 2.5 + H; spot.shadow.camera.updateProjectionMatrix();
+}
+build();
+
+/* ---------- marbles ---------- */
+const marbleColors = [['#1d6bff', 'rgba(140,240,255,0.95)'], ['#ff3d8b', 'rgba(255,215,120,0.95)'], ['#16c79a', 'rgba(220,255,140,0.95)']];
+const balls = marbleColors.map(([b, r]) => {
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 48, 32), new THREE.MeshPhysicalMaterial({
+    map: marbleTex(b, r), roughness: 0.06, metalness: 0, clearcoat: 1, clearcoatRoughness: 0.03, envMapIntensity: 1.5 }));
+  mesh.castShadow = true; scene.add(mesh);
+  return { mesh, p: new THREE.Vector3(), v: new THREE.Vector3() };
+});
+function resetBalls() {
+  balls.forEach((b, i) => {
+    b.mesh.scale.setScalar(R);
+    b.p.set((i - 1) * W * 0.25, yF + R, -D * (0.25 + 0.15 * i)); b.v.set(0, 0, 0);
+  });
+}
+resetBalls();
+
+/* ---------- target orb ---------- */
+const orb = new THREE.Group();
+const orbCore = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), new THREE.MeshBasicMaterial({ color: 0xffd0f2, toneMapped: false }));
+const orbGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: DOT, color: 0xff7ad9, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+orb.add(orbCore, orbGlow); scene.add(orb);
+const ring = new THREE.Mesh(new THREE.RingGeometry(0.8, 1, 48), new THREE.MeshBasicMaterial({ color: 0xff7ad9, transparent: true, opacity: 0.7, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false }));
+ring.rotation.x = -Math.PI / 2; scene.add(ring);
+let orbFront = true, orbActive = true, orbTimer = 0, score = 0;
+const orbHues = [0xff7ad9, 0x7af0ff, 0xffd36e, 0x9b8cff, 0x6effa8];
+function placeOrb() {
+  orbFront = !orbFront;
+  const z = orbFront ? F * (0.25 + 0.45 * Math.random()) : -D * (0.35 + 0.5 * Math.random());
+  const x = (Math.random() - 0.5) * (W - 4 * R);
+  orb.position.set(x, yF + R * 1.6, z); orb.userData.base = orb.position.y;
+  const c = orbHues[(score) % orbHues.length];
+  orbGlow.material.color.setHex(c); ring.material.color.setHex(c); orbLight.color.setHex(c);
+  orbActive = true; orb.visible = ring.visible = true; orbLight.visible = true;
+}
+placeOrb();
+
+/* ---------- particles (burst) ---------- */
+const PN = 90, ppos = new Float32Array(PN * 3), pvel = Array.from({ length: PN }, () => new THREE.Vector3());
+const pgeo = new THREE.BufferGeometry(); pgeo.setAttribute('position', new THREE.BufferAttribute(ppos, 3));
+const burst = new THREE.Points(pgeo, new THREE.PointsMaterial({ size: 0.06, map: DOT, transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffffff }));
+scene.add(burst); let burstT = 0;
+function doBurst(at, color) {
+  for (let i = 0; i < PN; i++) {
+    ppos.set([at.x, at.y, at.z], i * 3);
+    pvel[i].set(Math.random() - 0.5, Math.random() * 0.9, Math.random() - 0.5).normalize().multiplyScalar(M * (0.4 + Math.random() * 0.9));
+  }
+  burst.material.size = 0.05 * M; burst.material.color.setHex(color); burstT = 1; pgeo.attributes.position.needsUpdate = true;
+}
+
+/* ---------- soap bubbles that drift out of the screen ---------- */
+const bubbleMat = new THREE.MeshPhysicalMaterial({ color: 0xffffff, roughness: 0, metalness: 0, transparent: true, opacity: 0.32,
+  iridescence: 1, iridescenceIOR: 1.3, iridescenceThicknessRange: [120, 900], envMapIntensity: 2.2, depthWrite: false });
+const bubbles = []; let bubbleClock = 2;
+function spawnBubble() {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 16), bubbleMat);
+  const r = M * (0.08 + Math.random() * 0.07);
+  m.scale.setScalar(r); scene.add(m);
+  bubbles.push({ m, r, t: 0, p: new THREE.Vector3((Math.random() - 0.5) * W * 0.4, yF + (H / 2 - yF) * (0.35 + Math.random() * 0.4), -D * 0.92), ph: Math.random() * 6, pop: 0 });
+}
+
+/* ---------- audio ---------- */
+let ac = null;
+function tone(f, dur, vol, type = 'sine', f2) {
+  if (!ac) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.02);
+}
+const sfx = {
+  click: v => tone(1800 + Math.random() * 600, 0.05, Math.min(0.12, v), 'triangle'),
+  chime: () => { tone(880, 0.5, 0.15); setTimeout(() => tone(1320, 0.6, 0.12), 80); setTimeout(() => tone(1760, 0.7, 0.08), 160); },
+  pop: () => tone(700, 0.08, 0.12, 'square', 120),
+};
+let lastClick = 0;
+function knock(v) { const n = performance.now(); if (v > M * 0.4 && n - lastClick > 40) { lastClick = n; sfx.click(v / (M * 8)); } }
+
+/* ---------- input ---------- */
+const ui = id => document.getElementById(id);
+let started = false, mode = 'demo';
+const qDev = new THREE.Quaternion(), qDevT = new THREE.Quaternion(), q0 = new THREE.Quaternion(), qTmp = new THREE.Quaternion();
+let haveQ = false, gyroSeen = false;
+function screenAngle() { return (screen.orientation && screen.orientation.angle) || window.orientation || 0; }
+addEventListener('deviceorientation', e => {
+  if (e.beta == null || e.gamma == null) return;
+  gyroSeen = true;
+  const x = e.beta * DEG, y = e.gamma * DEG, z = (e.alpha || 0) * DEG;
+  const cX = Math.cos(x / 2), cY = Math.cos(y / 2), cZ = Math.cos(z / 2), sX = Math.sin(x / 2), sY = Math.sin(y / 2), sZ = Math.sin(z / 2);
+  qDevT.set(sX * cY * cZ - cX * sY * sZ, cX * sY * cZ + sX * cY * sZ, cX * cY * sZ + sX * sY * cZ, cX * cY * cZ - sX * sY * sZ);
+  const a = screenAngle(); if (a) { qTmp.setFromAxisAngle(new THREE.Vector3(0, 0, 1), -a * DEG); qDevT.multiply(qTmp); }
+  if (!haveQ) { q0.copy(qDevT); qDev.copy(qDevT); haveQ = true; }
+});
+
+// pointer fallback: desktop hover = head/tilt, touch drag = joystick tilt
+let tx = 0, ty = 0, ttx = 0, tty = 0, dragging = false, lastPX = 0, lastPY = 0;
+addEventListener('pointermove', e => {
+  if (e.target.closest && e.target.closest('#panel,#gear,#start')) return;
+  if (e.pointerType === 'mouse') { ttx = (e.clientX / innerWidth) * 2 - 1; tty = -((e.clientY / innerHeight) * 2 - 1); }
+  else if (dragging) {
+    ttx = THREE.MathUtils.clamp(ttx + (e.clientX - lastPX) / (innerWidth * 0.45), -1, 1);
+    tty = THREE.MathUtils.clamp(tty - (e.clientY - lastPY) / (innerHeight * 0.35), -1, 1);
+    lastPX = e.clientX; lastPY = e.clientY;
+  }
+});
+addEventListener('pointerdown', e => { if (e.pointerType !== 'mouse' && !e.target.closest('#panel,#gear,#start')) { dragging = true; lastPX = e.clientX; lastPY = e.clientY; } });
+addEventListener('pointerup', () => dragging = false);
+addEventListener('pointercancel', () => dragging = false);
+
+/* ---------- face tracking (head-coupled perspective) ---------- */
+let face = null, video = null, faceOn = false, faceOK = false, lastVT = -1;
+const faceEye = new THREE.Vector3();
+function status(s) { ui('status').textContent = s; }
+async function startFace() {
+  status('正在启动摄像头…');
+  try {
+    video = document.createElement('video'); video.playsInline = true; video.muted = true;
+    video.srcObject = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user', width: 640, height: 480 } });
+    await video.play();
+    status('正在加载人脸模型…');
+    const V = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.14';
+    const vision = await import(V + '/vision_bundle.mjs');
+    const fs = await vision.FilesetResolver.forVisionTasks(V + '/wasm');
+    face = await vision.FaceDetector.createFromOptions(fs, {
+      baseOptions: { modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite', delegate: 'GPU' },
+      runningMode: 'VIDEO', minDetectionConfidence: 0.5 });
+    faceOn = true; ui('faceBtn').textContent = '关闭摄像头头追'; status('头追已开启：移动头部看看。'); updateModeLabel();
+  } catch (err) {
+    faceOn = false;
+    status('摄像头头追不可用（' + (err && err.name || err) + '）。Claude 的预览框会拦截摄像头，请把网页单独部署到 https 地址后打开。');
+  }
+}
+function stopFace() {
+  faceOn = false; faceOK = false;
+  if (video && video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
+  ui('faceBtn').textContent = '开启摄像头头追'; status(''); updateModeLabel();
+}
+function updateFace() {
+  if (!faceOn || !face || !video || video.readyState < 2 || video.currentTime === lastVT) return;
+  lastVT = video.currentTime;
+  const d = face.detectForVideo(video, performance.now()).detections[0];
+  if (!d || !d.keypoints || d.keypoints.length < 2) { faceOK = false; return; }
+  const [k0, k1] = d.keypoints, vw = video.videoWidth, vh = video.videoHeight;
+  const hf = settings.hfov * DEG, vf = 2 * Math.atan(Math.tan(hf / 2) * vh / vw);
+  const u = (k0.x + k1.x) / 2, v = (k0.y + k1.y) / 2;
+  const ang = Math.hypot((k0.x - k1.x) * hf, (k0.y - k1.y) * vf);
+  const z = THREE.MathUtils.clamp(6.3 / (2 * Math.tan(ang / 2)), 12, 150);
+  faceEye.set(-z * Math.tan((u - 0.5) * hf), (H / 2 + 0.6) - z * Math.tan((v - 0.5) * vf), z);
+  faceOK = true;
+}
+
+function updateModeLabel() {
+  const base = { demo: '演示', gyro: '陀螺仪', drag: '拖动倾斜', mouse: '鼠标' }[mode];
+  ui('mode').textContent = base + (faceOn ? ' + 头追' : '');
+}
+
+/* ---------- start ---------- */
+async function start(withFace) {
+  if (started) return; started = true;
+  try { ac = new (window.AudioContext || window.webkitAudioContext)(); } catch (e) {}
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+  }
+  ui('start').classList.add('hide');
+  ttx = tty = 0;
+  mode = isTouch ? 'drag' : 'mouse'; updateModeLabel();
+  setTimeout(() => { if (gyroSeen) { mode = 'gyro'; haveQ = false; updateModeLabel(); }
+    else if (isTouch) ui('hint').textContent = '没有陀螺仪权限：用手指拖动来倾斜盒子'; }, 700);
+  if (!isTouch) ui('hint').textContent = '移动鼠标来倾斜 · 把弹珠滚出屏幕，去碰发光的球';
+  if (withFace) startFace();
+}
+ui('go').onclick = () => start(false);
+ui('goFace').onclick = () => start(true);
+
+/* ---------- settings panel ---------- */
+ui('dist').value = settings.dist; ui('distV').textContent = settings.dist;
+ui('gear').onclick = () => ui('panel').classList.toggle('open');
+ui('gain').oninput = e => { settings.gain = +e.target.value; ui('gainV').textContent = settings.gain.toFixed(2); };
+ui('dist').oninput = e => { settings.dist = +e.target.value; ui('distV').textContent = settings.dist; onResize(); };
+ui('bars').onchange = e => { settings.bars = e.target.checked; bars.visible = settings.bars; };
+ui('calib').onclick = () => { haveQ = false; ttx = tty = 0; resetBalls(); };
+ui('faceBtn').onclick = () => faceOn ? stopFace() : startFace();
+
+/* ---------- off-axis projection ---------- */
+const eye = new THREE.Vector3(0, 0, settings.dist), eyeT = new THREE.Vector3();
+const grav = new THREE.Vector3(0, -1, 0), gravT = new THREE.Vector3();
+function applyWindow(e) {
+  const n = 0.5, f = e.z + D + 60, k = n / e.z;
+  camera.position.copy(e); camera.quaternion.identity(); camera.updateMatrixWorld();
+  camera.projectionMatrix.makePerspective((-W / 2 - e.x) * k, (W / 2 - e.x) * k, (H / 2 - e.y) * k, (-H / 2 - e.y) * k, n, f);
+  camera.projectionMatrixInverse.copy(camera.projectionMatrix).invert();
+}
+
+/* ---------- physics ---------- */
+const tmp = new THREE.Vector3(), axis = new THREE.Vector3(), qr = new THREE.Quaternion();
+function physics(dt) {
+  const xMax = W / 2 - R, zMin = -D + R, zMax = F - Math.max(0.02 * M, 0.06) - R, yMin = yF + R, yMax = H / 2 - R;
+  for (const b of balls) {
+    b.v.addScaledVector(gravT.copy(grav).multiplyScalar(G), dt);
+    b.v.multiplyScalar(1 - 0.35 * dt);
+    b.p.addScaledVector(b.v, dt);
+    if (b.p.y < yMin) { b.p.y = yMin; if (b.v.y < 0) b.v.y *= -0.25; b.v.x *= 1 - 0.6 * dt; b.v.z *= 1 - 0.6 * dt; }
+    if (b.p.y > yMax) { b.p.y = yMax; if (b.v.y > 0) b.v.y *= -0.3; }
+    if (b.p.x < -xMax) { b.p.x = -xMax; knock(-b.v.x); b.v.x *= -0.55; }
+    if (b.p.x > xMax) { b.p.x = xMax; knock(b.v.x); b.v.x *= -0.55; }
+    if (b.p.z < zMin) { b.p.z = zMin; knock(-b.v.z); b.v.z *= -0.55; }
+    if (b.p.z > zMax) { b.p.z = zMax; knock(b.v.z); b.v.z *= -0.55; }
+  }
+  for (let i = 0; i < balls.length; i++) for (let j = i + 1; j < balls.length; j++) {
+    const a = balls[i], c = balls[j]; tmp.subVectors(c.p, a.p); const d = tmp.length();
+    if (d > 0 && d < 2 * R) {
+      tmp.divideScalar(d); const over = 2 * R - d;
+      a.p.addScaledVector(tmp, -over / 2); c.p.addScaledVector(tmp, over / 2);
+      const rel = c.v.clone().sub(a.v).dot(tmp);
+      if (rel < 0) { const j2 = -(1 + 0.85) * rel / 2; a.v.addScaledVector(tmp, -j2); c.v.addScaledVector(tmp, j2); knock(-rel); }
+    }
+  }
+  for (const b of balls) {
+    // rolling without slipping on the floor
+    axis.set(b.v.z, 0, -b.v.x); const sp = axis.length();
+    if (sp > 1e-5) { qr.setFromAxisAngle(axis.divideScalar(sp), sp / R * dt); b.mesh.quaternion.premultiply(qr); }
+    b.mesh.position.copy(b.p);
+  }
+}
+
+/* ---------- loop ---------- */
+const clock = new THREE.Clock(); let T = 0;
+const Z = new THREE.Vector3(0, 0, 1), DOWN = new THREE.Vector3(0, -1, 0);
+function frame() {
+  const dt = Math.min(clock.getDelta(), 1 / 30); T += dt;
+
+  // --- derive eye position + gravity from the active input ---
+  if (!started) {
+    eyeT.set(Math.sin(T * 0.6) * settings.dist * 0.32, Math.sin(T * 0.43) * settings.dist * 0.18, settings.dist);
+    gravT.set(Math.sin(T * 0.5) * 0.35, -1, Math.sin(T * 0.37) * 0.45).normalize(); grav.lerp(gravT, 0.05);
+  } else if (mode === 'gyro' && haveQ) {
+    qDev.slerp(qDevT, 0.45);
+    qr.copy(q0).invert().multiply(qDev).invert(); // device frame <- calibrated frame
+    eyeT.copy(Z).applyQuaternion(qr).multiplyScalar(settings.dist);
+    grav.copy(DOWN).applyQuaternion(qr);
+  } else {
+    if (!dragging && mode === 'drag') { ttx *= 1 - 1.2 * dt; tty *= 1 - 1.2 * dt; }
+    tx += (ttx - tx) * Math.min(1, dt * 10); ty += (tty - ty) * Math.min(1, dt * 10);
+    eyeT.set(tx * settings.dist * 0.42, ty * settings.dist * 0.32, settings.dist);
+    grav.set(Math.sin(tx * 0.6), -1, Math.sin(ty * 0.6)).normalize(); // eye up <-> marbles roll toward you
+  }
+  updateFace();
+  if (faceOn && faceOK) eyeT.copy(faceEye);
+  eyeT.x *= settings.gain; eyeT.y *= settings.gain; eyeT.z = Math.max(eyeT.z, 8);
+  eye.lerp(eyeT, faceOn ? 0.5 : 0.6);
+  applyWindow(eye);
+
+  physics(dt / 2); physics(dt / 2);
+
+  // --- orb ---
+  if (orbActive) {
+    orb.position.y = orb.userData.base + Math.sin(T * 2.4) * R * 0.25;
+    const s = R * 0.55 * (1 + 0.08 * Math.sin(T * 6));
+    orbCore.scale.setScalar(s); orbGlow.scale.setScalar(s * 7);
+    ring.position.set(orb.position.x, yF + 0.01, orb.position.z); ring.scale.setScalar(R * (1.2 + 0.25 * Math.sin(T * 3)));
+    orbLight.position.copy(orb.position); orbLight.intensity = 2 + Math.sin(T * 6) * 0.4;
+    for (const b of balls) if (b.p.distanceTo(orb.position) < R + s * 1.6) {
+      orbActive = false; orb.visible = ring.visible = false; orbLight.visible = false;
+      score++; ui('score').textContent = '★ ' + score; doBurst(orb.position, orbGlow.material.color.getHex()); sfx.chime();
+      orbTimer = 0.7; if (score === 1) ui('hint').style.opacity = 0; break;
+    }
+  } else if ((orbTimer -= dt) <= 0) placeOrb();
+
+  // --- burst ---
+  if (burstT > 0) {
+    burstT -= dt * 0.9; burst.material.opacity = Math.max(0, burstT);
+    for (let i = 0; i < PN; i++) { pvel[i].y -= G * 0.4 * dt; ppos[i * 3] += pvel[i].x * dt; ppos[i * 3 + 1] += pvel[i].y * dt; ppos[i * 3 + 2] += pvel[i].z * dt; }
+    pgeo.attributes.position.needsUpdate = true;
+  }
+
+  // --- bubbles ---
+  if ((bubbleClock -= dt) <= 0) { spawnBubble(); bubbleClock = 6 + Math.random() * 6; }
+  for (let i = bubbles.length - 1; i >= 0; i--) {
+    const b = bubbles[i]; b.t += dt;
+    if (b.pop > 0) { b.pop -= dt * 4; b.m.scale.setScalar(b.r * (1 + (1 - b.pop) * 0.6)); bubbleMat.opacity = 0.32;
+      if (b.pop <= 0) { scene.remove(b.m); b.m.geometry.dispose(); bubbles.splice(i, 1); } continue; }
+    b.p.z += D * 0.075 * dt; b.p.x += Math.sin(b.t * 1.3 + b.ph) * M * 0.05 * dt; b.p.y += Math.cos(b.t * 1.1 + b.ph) * M * 0.04 * dt;
+    b.m.position.copy(b.p); b.m.rotation.y += dt;
+    if (b.p.z > F + settings.dist * 0.18) { b.pop = 1; sfx.pop(); doBurst(b.p, 0xbfe9ff); }
+  }
+
+  // --- decor + dust ---
+  for (const m of decor) { m.rotation.x += dt * 0.25; m.rotation.y += dt * 0.4; m.position.y = m.userData.base.y + Math.sin(T * 0.9 + m.userData.ph) * M * 0.03; }
+  if (dust) dust.rotation.y = Math.sin(T * 0.05) * 0.02;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+
+function onResize() {
+  renderer.setSize(innerWidth, innerHeight);
+  computeDims(); build(); resetBalls(); placeOrb();
+}
+addEventListener('resize', onResize);
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
