@@ -1,0 +1,525 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>抗晕挑战 · 你能撑多久</title>
+<style>
+  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;color:#eef3ff;
+    font-family:system-ui,-apple-system,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+    -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
+  canvas#gl{display:block;position:fixed;inset:0}
+  .hud{position:fixed;z-index:3;pointer-events:none;transition:opacity .8s}
+  #hudL{top:calc(env(safe-area-inset-top) + 12px);left:14px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
+  #lives{font-size:18px;letter-spacing:2px;color:#ff5c8a}
+  #hudC{top:calc(env(safe-area-inset-top) + 14px);left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.2em;opacity:.8;white-space:nowrap}
+  #stop{position:fixed;z-index:6;top:calc(env(safe-area-inset-top) + 10px);right:12px;width:52px;height:52px;border-radius:50%;
+    border:2px solid rgba(255,255,255,.55);background:rgba(220,40,70,.55);color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:none}
+  #banner{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:4;
+    pointer-events:none;opacity:0;transition:opacity .5s;text-align:center;padding:0 24px}
+  #banner .n{font-size:14px;letter-spacing:.5em;opacity:.75}
+  #banner .t{font-size:46px;font-weight:800;letter-spacing:.25em;margin:6px 0 10px;text-shadow:0 0 24px currentColor}
+  #banner .d{font-size:15px;opacity:.95;text-shadow:0 1px 8px #000,0 0 3px #000;max-width:320px;line-height:1.6}
+  #pop{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:4;font-size:22px;font-weight:800;pointer-events:none;
+    opacity:0;transition:opacity .25s, transform .25s;text-shadow:0 0 14px #5ff}
+  #hit{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;
+    background:radial-gradient(ellipse at center,rgba(255,0,60,0) 40%,rgba(255,0,60,.55) 100%);transition:opacity .45s}
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:7;padding:18px 20px calc(env(safe-area-inset-bottom) + 18px);
+    background:rgba(6,10,22,.86);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid rgba(160,200,255,.2);
+    transform:translateY(105%);transition:transform .3s}
+  .sheet.open{transform:none}
+  .sheet h3{margin:0 0 4px;font-size:17px}
+  #maeHint{font-size:13px;opacity:.8;line-height:1.55;margin:0 0 10px;display:none;color:#9fe8ff}
+  #fmsVal{font-size:44px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;margin:2px 0}
+  #fms{width:100%;height:36px;accent-color:#ff6b9a}
+  .scale{display:flex;justify-content:space-between;font-size:12px;opacity:.65;margin-bottom:12px}
+  .btn{display:block;width:100%;padding:14px;border-radius:14px;border:0;font-size:16px;font-weight:700;cursor:pointer;
+    color:#08101f;background:linear-gradient(90deg,#8ff3ff,#ff9ad0)}
+  .btn.ghost{background:transparent;color:#dfe9ff;border:1px solid rgba(160,200,255,.35);font-weight:500;margin-top:10px}
+  .overlay{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;
+    background:radial-gradient(ellipse at 50% 40%,#0b1430,#02040a 75%);overflow:auto}
+  .card{width:min(380px,calc(100vw - 36px));padding:24px 22px;border-radius:22px;background:rgba(10,16,34,.7);
+    border:1px solid rgba(160,200,255,.2);margin:20px 0}
+  .card h1{margin:0;font-size:32px;letter-spacing:.2em;text-align:center;
+    background:linear-gradient(90deg,#8ff3ff,#c49bff,#ff8ac0);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .card .sub{text-align:center;opacity:.7;font-size:13px;letter-spacing:.15em;margin:4px 0 16px}
+  .card p,.card li{font-size:14px;line-height:1.65;opacity:.9}
+  .card ul{padding-left:18px;margin:8px 0 14px}
+  .warn{font-size:12.5px;line-height:1.6;background:rgba(255,90,120,.1);border:1px solid rgba(255,90,120,.3);
+    border-radius:12px;padding:10px 12px;margin:0 0 16px;color:#ffd3de}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+  .stat{background:rgba(255,255,255,.04);border-radius:12px;padding:10px 12px}
+  .stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
+  .stat span{font-size:12px;opacity:.65}
+  .rank{text-align:center;font-size:24px;font-weight:800;margin:6px 0 2px}
+  .idx{text-align:center;font-size:13px;opacity:.7}
+  canvas#spark{width:100%;height:80px;display:block;margin-top:4px}
+  .hide{display:none!important}
+</style>
+<script type="importmap">
+{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }
+</script>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="hit"></div>
+<div class="hud" id="hudL"><div id="lives">♥♥♥</div><div id="time">0.0 s</div><div id="score">0</div></div>
+<div class="hud" id="hudC">第 1 关 · 热身</div>
+<button id="stop">停</button>
+<div id="banner"><div class="n" id="bN"></div><div class="t" id="bT"></div><div class="d" id="bD"></div></div>
+<div id="pop"></div>
+
+<div class="sheet" id="sheet">
+  <p id="maeHint">画面现在是静止的。你是不是觉得它在慢慢往回缩？这就是<b>运动后效</b>：你的大脑还在补偿刚才的高速前进。</p>
+  <h3>现在有多晕？</h3>
+  <div id="fmsVal">0</div>
+  <input type="range" id="fms" min="0" max="20" step="1" value="0">
+  <div class="scale"><span>0 完全没事</span><span>10 有点难受</span><span>20 马上要吐</span></div>
+  <button class="btn" id="fmsOk">继续</button>
+</div>
+
+<div class="overlay" id="intro">
+  <div class="card">
+    <h1>抗晕挑战</h1>
+    <div class="sub">你能在隧道里撑多久？</div>
+    <p>在高速隧道里<b>左右滑动屏幕</b>，让飞船绕着管壁移动，从光环的缺口穿过去（电脑上用 ← → 或拖动鼠标）。贴着边缘穿过算<b>擦边</b>，有额外加分。</p>
+    <p>每一关都会加入一种最容易让人晕的视觉把戏。每隔 30 秒，画面会冻结，问你有多晕。</p>
+    <div class="warn">⚠️ 这个游戏是故意让人晕的。请<b>坐着</b>玩，手机离眼睛 20–30 cm 效果最强。有光敏性癫痫、前庭或平衡问题、偏头痛或正在怀孕，请不要玩。感到不适就随时按右上角的「停」。</div>
+    <button class="btn" id="go">我坐好了，开始</button>
+    <div id="bestLine" class="idx" style="margin-top:12px"></div>
+  </div>
+</div>
+
+<div class="overlay hide" id="result">
+  <div class="card">
+    <div class="sub" id="rReason" style="margin-bottom:6px"></div>
+    <div class="rank" id="rRank"></div>
+    <div class="idx" id="rIdx"></div>
+    <div class="stats">
+      <div class="stat"><b id="rTime">0</b><span>坚持时间</span></div>
+      <div class="stat"><b id="rLevel">1</b><span>到达关卡</span></div>
+      <div class="stat"><b id="rFms">0</b><span>最高晕动值 (0–20)</span></div>
+      <div class="stat"><b id="rNear">0</b><span>擦边次数</span></div>
+    </div>
+    <div style="font-size:12px;opacity:.65">你的晕动曲线</div>
+    <canvas id="spark" width="600" height="160"></canvas>
+    <p style="font-size:13px;opacity:.75;margin-top:12px">先看看远处，深呼吸几次，等不晕了再来一局。</p>
+    <button class="btn" id="again">再来一局</button>
+  </div>
+</div>
+
+<script type="module">
+import * as THREE from 'three';
+
+/* ---------------- setup ---------------- */
+const $ = id => document.getElementById(id);
+const canvas = $('gl');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x000000);
+const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 420);
+
+const RT = 6, RP = 4.2, SHIP_Z = -7, LEN = 220, SLOTS = 12, SLOT = Math.PI * 2 / SLOTS, DEG = Math.PI / 180;
+function fitCamera(fovBoost = 0) {
+  const a = innerWidth / innerHeight;
+  const half = Math.atan((RP * 1.22) / -SHIP_Z);          // orbit must fit in the narrow dimension
+  const vHalf = a < 1 ? Math.atan(Math.tan(half) / a) : half;
+  camera.aspect = a; camera.fov = Math.min(2 * vHalf / DEG + fovBoost, 150); camera.updateProjectionMatrix();
+}
+fitCamera();
+
+/* ---------------- tunnel shader ---------------- */
+const tunnelMat = new THREE.ShaderMaterial({
+  side: THREE.BackSide,
+  uniforms: {
+    uScroll: { value: 0 }, uTime: { value: 0 }, uLen: { value: LEN }, uBend: { value: new THREE.Vector2() },
+    uCol: { value: new THREE.Color(0x4fe3ff) }, uCol2: { value: new THREE.Color(0x2244ff) }, uBright: { value: 1 },
+  },
+  vertexShader: `
+    uniform vec2 uBend; varying vec3 vL;
+    void main(){ vL = position; vec3 p = position; p.xy += uBend * p.z * p.z;
+      gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0); }`,
+  fragmentShader: `
+    uniform float uScroll, uTime, uLen, uBright; uniform vec3 uCol, uCol2; varying vec3 vL;
+    float line(float x, float w){ float d = 0.5 - abs(fract(x) - 0.5); float fw = fwidth(x);
+      return 1.0 - smoothstep(w, w + fw * 1.5, d); }
+    void main(){
+      float a = (atan(vL.y, vL.x) / 6.2831853 + 0.5) * 16.0;
+      float z = (-vL.z + uScroll) * 0.11;
+      float la = line(a, 0.025), lz = line(z, 0.035);
+      float chk = mod(floor(a) + floor(z), 2.0);
+      float f = clamp(-vL.z / uLen, 0.0, 1.0);
+      float pulse = 0.5 + 0.5 * sin(z * 0.6 - uTime * 3.0);
+      vec3 c = uCol2 * (0.05 + 0.05 * chk) + uCol * (la * 0.75 + lz * (0.7 + 0.5 * pulse));
+      c *= pow(1.0 - f, 1.4) * uBright;
+      c += uCol2 * 0.18 * f * (1.0 - f);
+      gl_FragColor = vec4(c, 1.0);
+    }`,
+});
+const tunnelGeo = new THREE.CylinderGeometry(RT, RT, LEN, 64, 80, true);
+tunnelGeo.rotateX(Math.PI / 2); tunnelGeo.translate(0, 0, -LEN / 2 + 3);
+scene.add(new THREE.Mesh(tunnelGeo, tunnelMat));
+
+// glow at the end of the tunnel
+function glowTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
+  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
+}
+const GLOW = glowTex();
+const endGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0x4fe3ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+endGlow.scale.setScalar(70); scene.add(endGlow);
+
+/* ---------------- speed streaks ---------------- */
+const SN = 520, sPos = new Float32Array(SN * 6), sBase = new Float32Array(SN * 3);
+for (let i = 0; i < SN; i++) {
+  const r = RT * (0.25 + 0.7 * Math.sqrt(Math.random())), t = Math.random() * Math.PI * 2;
+  sBase[i * 3] = Math.cos(t) * r; sBase[i * 3 + 1] = Math.sin(t) * r; sBase[i * 3 + 2] = -Math.random() * LEN;
+}
+const sGeo = new THREE.BufferGeometry(); sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
+const streaks = new THREE.LineSegments(sGeo, new THREE.LineBasicMaterial({ color: 0xcfefff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
+streaks.frustumCulled = false; scene.add(streaks);
+
+/* ---------------- rings (obstacles) ---------------- */
+const sectorGeo = new THREE.RingGeometry(RT * 0.4, RT * 0.985, 8, 1, 0.012, SLOT - 0.024);
+const sectorEdge = new THREE.EdgesGeometry(sectorGeo);
+const rings = [];
+for (let k = 0; k < 11; k++) {
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color: 0xff3d8b, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
+  const emat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
+  const segs = [];
+  for (let i = 0; i < SLOTS; i++) {
+    const m = new THREE.Mesh(sectorGeo, mat); m.rotation.z = i * SLOT;
+    m.add(new THREE.LineSegments(sectorEdge, emat)); g.add(m); segs.push(m);
+  }
+  scene.add(g);
+  rings.push({ g, mat, emat, segs, blocked: new Array(SLOTS).fill(false), z: 0, judged: false, active: false });
+}
+
+/* ---------------- ship ---------------- */
+const ship = new THREE.Group();
+const hull = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.1, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+hull.rotation.x = -Math.PI / 2;
+const shipGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0x7ff6ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
+shipGlow.scale.setScalar(2.4);
+ship.add(hull, shipGlow); scene.add(ship);
+const orbitPts = []; for (let i = 0; i <= 96; i++) { const t = i / 96 * Math.PI * 2; orbitPts.push(new THREE.Vector3(Math.cos(t) * RP, Math.sin(t) * RP, SHIP_Z)); }
+const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(orbitPts), new THREE.LineBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: 0.16 }));
+scene.add(orbit);
+
+/* ---------------- levels ---------------- */
+const LEVELS = [
+  { name: '热身', desc: '滑动屏幕，绕着管壁躲开光环。贴着边缘穿过算擦边，有加分。', col: 0x4fe3ff, col2: 0x1b3cff, ring: 0xff3d8b, fx: {} },
+  { name: '翻滚', desc: '整个世界开始旋转。眼睛说你在转，身体说没有。', col: 0xff5fd2, col2: 0x5a1bff, ring: 0x3dffb8, fx: { roll: 1 } },
+  { name: '摇摆', desc: '0.2 Hz 的晃动，晕船最爱的频率。', col: 0xffc04f, col2: 0xff3b1b, ring: 0x4fa8ff, fx: { wobble: 1 } },
+  { name: '弯道', desc: '隧道开始拐弯，可你的身体一直是直的。', col: 0x8dff5a, col2: 0x0a7a4a, ring: 0xff5f5f, fx: { bend: 1, gyro: 1 } },
+  { name: '变速', desc: '忽快忽慢，猝不及防。', col: 0xb68cff, col2: 0x3a0f9a, ring: 0xffe14f, fx: { surge: 1 } },
+  { name: '无参照', desc: '所有参照物都消失了，只剩下流动。', col: 0xe8f2ff, col2: 0x223355, ring: 0xff4fa0, fx: { blind: 1, bend: 0.5 } },
+  { name: '极限', desc: '全部一起来。撑住。', col: 0xff4f4f, col2: 0x7a0010, ring: 0x4ffff0, fx: { roll: 0.6, wobble: 0.8, bend: 0.8, surge: 0.8, blind: 0.6, gyro: 1 } },
+];
+const LEVEL_DUR = 24;
+
+/* ---------------- audio ---------------- */
+let ac = null, eng = null;
+function initAudio() {
+  try {
+    ac = new (window.AudioContext || window.webkitAudioContext)();
+    const o1 = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
+    o1.type = 'sawtooth'; o2.type = 'sawtooth'; o2.detune.value = 14; f.type = 'lowpass'; f.Q.value = 6; g.gain.value = 0;
+    o1.connect(f); o2.connect(f); f.connect(g).connect(ac.destination); o1.start(); o2.start();
+    eng = { o1, o2, f, g };
+  } catch (e) { ac = null; }
+}
+function tone(freq, dur, vol, type = 'sine', f2) {
+  if (!ac) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
+  o.type = type; o.frequency.setValueAtTime(freq, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.05);
+}
+function noise(dur, vol) {
+  if (!ac) return; const b = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
+  const s = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+  s.buffer = b; g.gain.value = vol; s.connect(f).connect(g).connect(ac.destination); s.start();
+}
+const sfx = {
+  hit: () => { noise(0.35, 0.5); tone(90, 0.4, 0.3, 'square', 40); },
+  near: () => tone(600, 0.18, 0.12, 'triangle', 1800),
+  level: () => { tone(523, 0.6, 0.1); setTimeout(() => tone(659, 0.6, 0.1), 90); setTimeout(() => tone(784, 0.8, 0.1), 180); },
+  beat: () => { tone(58, 0.16, 0.5); setTimeout(() => tone(52, 0.18, 0.4), 170); },
+};
+function engine(on, v = 0) {
+  if (!eng) return; const t = ac.currentTime;
+  eng.g.gain.setTargetAtTime(on ? 0.045 : 0, t, on ? 0.1 : 0.03);
+  eng.o1.frequency.setTargetAtTime(38 + v * 1.1, t, 0.08); eng.o2.frequency.setTargetAtTime(38 + v * 1.1, t, 0.08);
+  eng.f.frequency.setTargetAtTime(260 + v * 14, t, 0.08);
+}
+
+/* ---------------- state ---------------- */
+let S;
+function newState() {
+  return { running: false, frozen: false, t: 0, play: 0, level: -1, lvT: 0, lives: 3, inv: 0, dist: 0, bonus: 0, near: 0, combo: 0,
+    phi: -Math.PI / 2, phiT: -Math.PI / 2, speed: 0, surge: 1, surgeT: 1, surgeClock: 0, roll: 0, fovKick: 0, shake: 0, slow: 1,
+    fx: { roll: 0, wobble: 0, bend: 0, surge: 0, blind: 0, gyro: 0 }, lastC: 9, spiral: 0, spiralDir: 1,
+    fmsLog: [{ t: 0, v: 0 }], nextFms: 30, maxFms: 0, firstFreeze: true };
+}
+S = newState();
+
+/* ---------------- input ---------------- */
+let dragging = false, lastX = 0; const keys = {};
+addEventListener('pointerdown', e => { if (e.target.closest('button,.sheet,.overlay')) return; dragging = true; lastX = e.clientX; });
+addEventListener('pointermove', e => { if (!dragging) return; S.phiT += (e.clientX - lastX) / innerWidth * Math.PI * 1.5; lastX = e.clientX; });
+addEventListener('pointerup', () => dragging = false); addEventListener('pointercancel', () => dragging = false);
+addEventListener('keydown', e => { keys[e.key] = true; }); addEventListener('keyup', e => { keys[e.key] = false; });
+let gyro = null, gyro0 = null;
+addEventListener('deviceorientation', e => { if (e.beta == null) return; gyro = { b: e.beta, g: e.gamma }; if (!gyro0) gyro0 = { ...gyro }; });
+
+/* ---------------- obstacles ---------------- */
+function difficulty() { return Math.min(1, (Math.max(0, S.level) + Math.min(1, S.lvT / LEVEL_DUR)) / 6 + Math.max(0, S.play - 7 * LEVEL_DUR) / 200); }
+function makePattern(r) {
+  const d = difficulty();
+  let c;
+  if (S.spiral > 0) { c = (S.lastC + S.spiralDir * 2 + SLOTS) % SLOTS; S.spiral--; }
+  else {
+    c = (S.lastC + Math.round((Math.random() * 2 - 1) * (2 + 2 * d)) + SLOTS * 2) % SLOTS;
+    if (d > 0.2 && Math.random() < 0.12 + 0.12 * d) { S.spiral = 3 + (Math.random() * 3 | 0); S.spiralDir = Math.random() < 0.5 ? 1 : -1; }
+  }
+  const w = d < 0.12 ? 6 : d < 0.35 ? 5 : d < 0.6 ? 4 : d < 0.85 ? 3 : 2;
+  r.blocked.fill(true);
+  const open = c0 => { for (let i = 0; i < w; i++) r.blocked[(c0 - (w >> 1) + i + SLOTS) % SLOTS] = false; };
+  open(c); if (Math.random() < 0.22 && S.spiral === 0) open((c + 6) % SLOTS);
+  S.lastC = c;
+  r.segs.forEach((m, i) => m.visible = r.blocked[i]);
+}
+function spacing() { return 30 - 11 * difficulty(); }
+function resetRings() {
+  rings.forEach((r, k) => { r.active = true; r.judged = false; r.z = -70 - k * spacing(); makePattern(r); });
+}
+
+/* ---------------- UI helpers ---------------- */
+let popT = null;
+function pop(text, color = '#7ff') {
+  const p = $('pop'); p.textContent = text; p.style.color = color; p.style.opacity = 1; p.style.transform = 'translate(-50%,-60%)';
+  clearTimeout(popT); popT = setTimeout(() => { p.style.opacity = 0; p.style.transform = 'translate(-50%,-50%)'; }, 550);
+}
+let banT = null;
+function banner(n, t, d, col) {
+  $('bN').textContent = n; $('bT').textContent = t; $('bD').textContent = d; $('bT').style.color = col;
+  $('banner').style.opacity = 1; clearTimeout(banT); banT = setTimeout(() => $('banner').style.opacity = 0, 2600);
+}
+const hex = c => '#' + new THREE.Color(c).getHexString();
+
+function enterLevel(i) {
+  S.level = i; S.lvT = 0; const L = LEVELS[i];
+  tunnelMat.uniforms.uCol.value.setHex(L.col); tunnelMat.uniforms.uCol2.value.setHex(L.col2);
+  endGlow.material.color.setHex(L.col); rings.forEach(r => r.mat.color.setHex(L.ring));
+  $('hudC').textContent = `第 ${i + 1} 关 · ${L.name}`;
+  let d = L.desc; if (L.fx.gyro && gyro) d += ' 再试试动一动手机。';
+  banner(`第 ${i + 1} 关`, L.name, d, hex(L.col)); sfx.level();
+  gyro0 = gyro ? { ...gyro } : null;
+}
+
+/* ---------------- game flow ---------------- */
+async function start() {
+  if (!ac) initAudio(); else ac.resume && ac.resume();
+  if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+    try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
+  }
+  S = newState(); S.running = true; resetRings();
+  $('intro').classList.add('hide'); $('result').classList.add('hide'); $('stop').style.display = 'block';
+  ['hudL', 'hudC'].forEach(id => $(id).style.opacity = 1);
+  updateHud(); enterLevel(0);
+}
+$('go').onclick = start; $('again').onclick = start;
+$('stop').onclick = () => end('stop');
+
+let beatTimer = null;
+function freeze() {
+  S.frozen = true; engine(false); dragging = false;
+  $('fms').value = S.fmsLog[S.fmsLog.length - 1].v; $('fmsVal').textContent = $('fms').value;
+  $('maeHint').style.display = S.firstFreeze ? 'block' : 'none'; S.firstFreeze = false;
+  $('sheet').classList.add('open');
+  sfx.beat(); beatTimer = setInterval(sfx.beat, 950);
+}
+$('fms').oninput = e => { $('fmsVal').textContent = e.target.value; const v = +e.target.value; $('fmsVal').style.color = v >= 15 ? '#ff6b8a' : v >= 8 ? '#ffd36e' : '#eef3ff'; };
+$('fmsOk').onclick = () => {
+  const v = +$('fms').value; S.fmsLog.push({ t: S.play, v }); S.maxFms = Math.max(S.maxFms, v);
+  $('sheet').classList.remove('open'); clearInterval(beatTimer);
+  if (v >= 15) { end('fms'); return; }
+  S.frozen = false; S.nextFms = S.play + 30;
+};
+
+const RANKS = [[40, '晕车星人'], [80, '普通乘客'], [130, '老水手'], [190, '宇航员'], [1e9, '战斗机飞行员']];
+function end(reason) {
+  if (!S.running) return;
+  S.running = false; S.frozen = false; engine(false); clearInterval(beatTimer);
+  $('sheet').classList.remove('open'); $('stop').style.display = 'none';
+  const t = S.play; if (S.fmsLog[S.fmsLog.length - 1].t < t - 1) S.fmsLog.push({ t, v: S.fmsLog[S.fmsLog.length - 1].v });
+  const idx = Math.round(t * 10 * (1 + (20 - S.maxFms) / 40) + S.near * 15);
+  $('rReason').textContent = { lives: '护盾耗尽', fms: '晕动值过高，强制休息', stop: '你按下了停止' }[reason];
+  $('rRank').textContent = RANKS.find(r => t < r[0])[1];
+  let best = 0; try { best = +(localStorage.getItem('vertigo_best') || 0); if (idx > best) localStorage.setItem('vertigo_best', idx); } catch (e) {}
+  $('rIdx').textContent = `抗晕指数 ${idx}` + (idx > best ? '  · 新纪录！' : `  · 最佳 ${best}`);
+  $('rTime').textContent = t.toFixed(1) + ' s'; $('rLevel').textContent = (S.level + 1) + ' / ' + LEVELS.length;
+  $('rFms').textContent = S.maxFms; $('rNear').textContent = S.near;
+  drawSpark(); $('result').classList.remove('hide');
+}
+function drawSpark() {
+  const c = $('spark'), g = c.getContext('2d'), w = c.width, h = c.height, L = S.fmsLog, T = Math.max(30, L[L.length - 1].t);
+  g.clearRect(0, 0, w, h);
+  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 1;
+  for (const v of [0, 10, 20]) { const y = h - 12 - v / 20 * (h - 24); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
+  for (let i = 1; i < LEVELS.length; i++) { const x = i * LEVEL_DUR / T * w; if (x > w) break; g.strokeStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
+  const grd = g.createLinearGradient(0, h, 0, 0); grd.addColorStop(0, '#4fe3ff'); grd.addColorStop(0.5, '#ffd36e'); grd.addColorStop(1, '#ff4f7a');
+  g.strokeStyle = grd; g.lineWidth = 4; g.lineJoin = 'round'; g.beginPath();
+  L.forEach((p, i) => { const x = p.t / T * (w - 8) + 4, y = h - 12 - p.v / 20 * (h - 24); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
+  g.fillStyle = '#fff'; L.forEach(p => { g.beginPath(); g.arc(p.t / T * (w - 8) + 4, h - 12 - p.v / 20 * (h - 24), 5, 0, 7); g.fill(); });
+}
+function updateHud() {
+  $('lives').textContent = '♥'.repeat(Math.max(0, S.lives)) + '♡'.repeat(Math.max(0, 3 - S.lives));
+  $('time').textContent = S.play.toFixed(1) + ' s  ·  ' + Math.round(S.speed * 14) + ' km/h';
+  $('score').textContent = (Math.floor(S.dist) + S.bonus) + ' 分' + (S.combo > 1 ? `  ×${S.combo}` : '');
+}
+addEventListener('visibilitychange', () => { if (document.hidden && S.running && !S.frozen) freeze(); });
+
+/* ---------------- collision ---------------- */
+function judge(r) {
+  const p = ((S.phi % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
+  const slot = Math.floor(p / SLOT) % SLOTS, fr = (p - slot * SLOT) / DEG; // degrees into the slot
+  const L = r.blocked[(slot + SLOTS - 1) % SLOTS], Rr = r.blocked[(slot + 1) % SLOTS];
+  const hit = r.blocked[slot] || (L && fr < 3) || (Rr && 30 - fr < 3);
+  if (hit) {
+    if (S.inv > 0 || S.play < 8) return;
+    S.lives--; S.combo = 0; S.inv = 1.2; S.shake = 0.45; S.slow = 0.55; sfx.hit();
+    $('hit').style.opacity = 1; setTimeout(() => $('hit').style.opacity = 0, 160);
+    navigator.vibrate && navigator.vibrate(90);
+    if (S.lives <= 0) setTimeout(() => end('lives'), 250);
+  } else if ((L && fr < 10) || (Rr && 30 - fr < 10)) {
+    S.near++; S.combo++; S.bonus += 40 * S.combo; S.fovKick = 9; sfx.near();
+    pop(S.combo > 1 ? `擦边 ×${S.combo}` : '擦边！', hex(LEVELS[Math.max(0, S.level)].col));
+  } else S.combo = 0;
+}
+
+/* ---------------- loop ---------------- */
+const clock = new THREE.Clock(); const target = new THREE.Vector3(); let demoT = 0;
+function bendAt(z, out) { const b = tunnelMat.uniforms.uBend.value; out.x = b.x * z * z; out.y = b.y * z * z; return out; }
+const tmpB = { x: 0, y: 0 };
+
+function frame() {
+  const dt = Math.min(clock.getDelta(), 1 / 30);
+  const live = S.running && !S.frozen;
+  S.t += dt;
+
+  if (live) {
+    S.play += dt; S.lvT += dt;
+    const want = Math.min(LEVELS.length - 1, Math.floor(S.play / LEVEL_DUR));
+    if (want !== S.level) enterLevel(want);
+    if (S.play >= S.nextFms) freeze();
+    // fx ramp toward level targets
+    const goal = LEVELS[S.level].fx;
+    for (const k in S.fx) S.fx[k] += ((goal[k] || 0) - S.fx[k]) * Math.min(1, dt * 0.6);
+    // controls
+    if (keys.ArrowLeft || keys.a || keys.A) S.phiT -= 4.2 * dt;
+    if (keys.ArrowRight || keys.d || keys.D) S.phiT += 4.2 * dt;
+  } else if (!S.running) {
+    demoT += dt; S.phiT = -Math.PI / 2 + Math.sin(demoT * 0.8) * 1.2;
+    for (const k in S.fx) S.fx[k] *= 0.97;
+  }
+  S.phi += (S.phiT - S.phi) * Math.min(1, dt * 16);
+
+  // speed
+  const d = difficulty();
+  let base = S.running ? 34 + 50 * d : 30;
+  if (S.fx.surge > 0.01) {
+    if ((S.surgeClock -= dt) <= 0) { S.surgeT = Math.random() < 0.5 ? 0.5 + Math.random() * 0.2 : 1.5 + Math.random() * 0.5; S.surgeClock = 1.2 + Math.random() * 2.2; if (S.surgeT > 1.3) S.fovKick = 14; }
+    S.surge += (S.surgeT - S.surge) * Math.min(1, dt * 7);
+  } else S.surge += (1 - S.surge) * dt * 2;
+  S.slow += (1 - S.slow) * dt * 1.5;
+  const surgeMul = 1 + (S.surge - 1) * S.fx.surge;
+  S.speed = S.frozen ? 0 : base * surgeMul * S.slow;
+  const v = S.speed;
+
+  if (!S.frozen) {
+    S.dist += v * dt * (S.running ? 1 : 0);
+    tunnelMat.uniforms.uScroll.value += v * dt;
+    tunnelMat.uniforms.uTime.value += dt;
+    // bend
+    const bk = S.fx.bend;
+    tunnelMat.uniforms.uBend.value.set(0.0017 * Math.sin(S.t * 0.33) * bk, 0.0012 * Math.sin(S.t * 0.26 + 2) * bk);
+    // rings
+    let minZ = 0; rings.forEach(r => minZ = Math.min(minZ, r.z));
+    for (const r of rings) {
+      const prev = r.z; r.z += v * dt;
+      if (S.running && !r.judged && prev < SHIP_Z && r.z >= SHIP_Z) { r.judged = true; judge(r); }
+      if (r.z > 3) { r.z = minZ - spacing(); minZ = r.z; r.judged = false; makePattern(r); }
+    }
+    if (S.inv > 0) S.inv -= dt;
+    if (live) updateHud();
+  }
+  if (eng && live) engine(true, v);
+
+  // place rings
+  for (const r of rings) {
+    bendAt(r.z, tmpB); r.g.position.set(tmpB.x, tmpB.y, r.z);
+    const far = THREE.MathUtils.smoothstep(r.z, -200, -130), near = 1 - THREE.MathUtils.smoothstep(r.z, SHIP_Z + 0.3, SHIP_Z + 2.5);
+    r.mat.opacity = 0.78 * far * near; r.emat.opacity = far * near; r.g.visible = r.mat.opacity > 0.01;
+  }
+  // streaks
+  const len = THREE.MathUtils.clamp(v * 0.05, 0.15, 5);
+  for (let i = 0; i < SN; i++) {
+    let z = sBase[i * 3 + 2]; if (!S.frozen) { z += v * dt; if (z > 2) z -= LEN; sBase[i * 3 + 2] = z; }
+    const x = sBase[i * 3], y = sBase[i * 3 + 1];
+    bendAt(z, tmpB); sPos.set([x + tmpB.x, y + tmpB.y, z], i * 6);
+    bendAt(z - len, tmpB); sPos.set([x + tmpB.x, y + tmpB.y, z - len], i * 6 + 3);
+  }
+  sGeo.attributes.position.needsUpdate = true;
+  streaks.material.opacity = 0.25 + Math.min(0.5, v / 120);
+  bendAt(-200, tmpB); endGlow.position.set(tmpB.x, tmpB.y, -200);
+
+  // ship + orbit
+  bendAt(SHIP_Z, tmpB);
+  ship.position.set(Math.cos(S.phi) * RP + tmpB.x, Math.sin(S.phi) * RP + tmpB.y, SHIP_Z);
+  ship.rotation.z = S.phi + Math.PI / 2;
+  ship.visible = S.inv <= 0 || Math.floor(S.t * 12) % 2 === 0;
+  orbit.position.set(tmpB.x, tmpB.y, 0);
+
+  // ---- camera: the motion-sickness machinery ----
+  if (!S.frozen) {
+    S.roll += 0.62 * S.fx.roll * dt;                                       // continuous roll vection
+  }
+  const w = S.fx.wobble, tw = S.frozen ? 0 : S.t, f02 = Math.PI * 2 * 0.2;
+  const wobX = Math.sin(tw * Math.PI * 2 * 0.17 + 1) * 1.0 * w, wobY = Math.sin(tw * f02) * 1.3 * w;   // ~0.2 Hz sway
+  const wobRoll = Math.sin(tw * f02 + 0.7) * 0.28 * w;
+  let shX = 0, shY = 0; if (S.shake > 0) { S.shake -= dt; shX = (Math.random() - 0.5) * S.shake; shY = (Math.random() - 0.5) * S.shake; }
+  camera.position.set(wobX + shX, wobY + shY, 0);
+  bendAt(-28, tmpB); target.set(tmpB.x + wobX * 0.3, tmpB.y + wobY * 0.3, -28);
+  camera.up.set(0, 1, 0); camera.lookAt(target);
+  camera.rotateZ(S.roll + wobRoll);
+  if (S.fx.gyro > 0.01 && gyro && gyro0) {                                // visual-vestibular gain mismatch
+    camera.rotateY(-(gyro.g - gyro0.g) * DEG * 0.9 * S.fx.gyro);
+    camera.rotateX((gyro.b - gyro0.b) * DEG * 0.9 * S.fx.gyro);
+  }
+  S.fovKick *= Math.pow(0.02, dt);
+  fitCamera(S.fovKick + (S.surge - 1) * 10 * S.fx.surge);
+
+  // remove references
+  const blind = S.fx.blind;
+  const hudOp = S.running ? String(1 - 0.92 * blind) : '1';
+  $('hudL').style.opacity = hudOp; $('hudC').style.opacity = hudOp;
+  orbit.material.opacity = 0.16 * (1 - blind);
+  tunnelMat.uniforms.uBright.value = 1 - 0.25 * blind;
+
+  renderer.render(scene, camera);
+  requestAnimationFrame(frame);
+}
+resetRings();
+try { const b = +(localStorage.getItem('vertigo_best') || 0); if (b) $('bestLine').textContent = '你的最佳抗晕指数：' + b; } catch (e) {}
+addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); fitCamera(); });
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
