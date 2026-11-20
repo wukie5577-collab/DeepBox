@@ -4,56 +4,92 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>抗晕挑战 · 你能撑多久</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;800&family=Noto+Sans+SC:wght@400;700;900&display=swap" rel="stylesheet">
 <style>
-  html,body{margin:0;height:100%;background:#000;overflow:hidden;touch-action:none;color:#eef3ff;
-    font-family:system-ui,-apple-system,"PingFang SC","Noto Sans SC","Microsoft YaHei",sans-serif;
+  :root{--ink:#141210;--paper:#efe8da;--stone:#8a8276;--red:#ff4a1c;
+    --mono:"JetBrains Mono",ui-monospace,Menlo,monospace;--sans:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif}
+  html,body{margin:0;height:100%;background:var(--ink);overflow:hidden;touch-action:none;color:var(--paper);font-family:var(--sans);
     -webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent}
   canvas#gl{display:block;position:fixed;inset:0}
-  .hud{position:fixed;z-index:3;pointer-events:none;transition:opacity .8s}
-  #hudL{top:calc(env(safe-area-inset-top) + 12px);left:14px;font-size:14px;line-height:1.5;font-variant-numeric:tabular-nums}
-  #lives{font-size:18px;letter-spacing:2px;color:#ff5c8a}
-  #hudC{top:calc(env(safe-area-inset-top) + 14px);left:50%;transform:translateX(-50%);font-size:13px;letter-spacing:.2em;opacity:.8;white-space:nowrap}
-  #stop{position:fixed;z-index:6;top:calc(env(safe-area-inset-top) + 10px);right:12px;width:52px;height:52px;border-radius:50%;
-    border:2px solid rgba(255,255,255,.55);background:rgba(220,40,70,.55);color:#fff;font-size:16px;font-weight:700;cursor:pointer;display:none}
-  #banner{position:fixed;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:4;
-    pointer-events:none;opacity:0;transition:opacity .5s;text-align:center;padding:0 24px}
-  #banner .n{font-size:14px;letter-spacing:.5em;opacity:.75}
-  #banner .t{font-size:46px;font-weight:800;letter-spacing:.25em;margin:6px 0 10px;text-shadow:0 0 24px currentColor}
-  #banner .d{font-size:15px;opacity:.95;text-shadow:0 1px 8px #000,0 0 3px #000;max-width:320px;line-height:1.6}
-  #pop{position:fixed;left:50%;top:38%;transform:translate(-50%,-50%);z-index:4;font-size:22px;font-weight:800;pointer-events:none;
-    opacity:0;transition:opacity .25s, transform .25s;text-shadow:0 0 14px #5ff}
-  #hit{position:fixed;inset:0;z-index:2;pointer-events:none;opacity:0;
-    background:radial-gradient(ellipse at center,rgba(255,0,60,0) 40%,rgba(255,0,60,.55) 100%);transition:opacity .45s}
-  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:7;padding:18px 20px calc(env(safe-area-inset-bottom) + 18px);
-    background:rgba(6,10,22,.86);-webkit-backdrop-filter:blur(10px);backdrop-filter:blur(10px);border-top:1px solid rgba(160,200,255,.2);
-    transform:translateY(105%);transition:transform .3s}
+  canvas#gl.inv{filter:invert(1)}
+
+  #hud{position:fixed;inset:0;pointer-events:none;z-index:3;transition:opacity .8s}
+  #hudL{position:absolute;top:calc(env(safe-area-inset-top) + 14px);left:16px;font-family:var(--mono);font-size:12px;line-height:1.7;letter-spacing:.04em}
+  #lives{display:flex;gap:5px;margin-bottom:4px}
+  #lives i{width:11px;height:11px;background:var(--red);display:block}
+  #lives i.off{background:transparent;outline:1.5px solid var(--red);outline-offset:-1.5px}
+  #hudC{position:absolute;top:calc(env(safe-area-inset-top) + 16px);left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:12px;letter-spacing:.18em;white-space:nowrap}
+  #stop{position:fixed;z-index:9;top:calc(env(safe-area-inset-top) + 10px);right:12px;width:46px;height:46px;border-radius:50%;
+    border:0;background:var(--paper);color:var(--ink);font:900 16px var(--sans);cursor:pointer;display:none}
+
+  #band{position:fixed;left:0;right:0;top:22%;z-index:4;background:var(--paper);color:var(--ink);padding:14px 22px 16px;
+    transform:scaleY(0);transform-origin:center;transition:transform .35s cubic-bezier(.2,.9,.2,1);pointer-events:none}
+  #band.on{transform:none}
+  #band .row{display:flex;align-items:baseline;gap:14px}
+  #band .n{font:800 15px var(--mono)}
+  #band .t{font:900 40px/1 var(--sans);letter-spacing:.06em}
+  #band .d{font-size:14px;margin-top:8px;line-height:1.5}
+
+  #pop{position:fixed;z-index:4;font:800 17px var(--mono);color:var(--red);pointer-events:none;opacity:0;white-space:nowrap;
+    text-shadow:2px 2px 0 var(--ink);transition:opacity .2s;transform:translate(-50%,-140%)}
+  #fix{position:fixed;z-index:4;width:22px;height:22px;transform:translate(-50%,-50%);pointer-events:none;opacity:0;transition:opacity .4s}
+  #fix:before,#fix:after{content:"";position:absolute;background:var(--red)}
+  #fix:before{left:10px;top:0;width:2px;height:22px}#fix:after{top:10px;left:0;height:2px;width:22px}
+  #fixT{position:fixed;z-index:4;transform:translate(-50%,24px);font:700 13px var(--sans);letter-spacing:.2em;pointer-events:none;opacity:0;transition:opacity .4s;
+    background:var(--ink);padding:3px 8px;white-space:nowrap}
+  #count{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:5;pointer-events:none;
+    font:800 120px var(--mono);color:var(--paper);opacity:0;text-shadow:5px 5px 0 var(--ink)}
+  #prompt{position:fixed;left:0;right:0;top:calc(env(safe-area-inset-top) + 70px);z-index:5;text-align:center;pointer-events:none;
+    padding:0 24px;opacity:0;transition:opacity .4s}
+  #prompt .a{display:inline-block;background:var(--ink);padding:6px 12px;font:900 22px/1.35 var(--sans);letter-spacing:.04em}
+  #prompt .b{display:inline-block;background:var(--ink);padding:4px 10px;margin-top:6px;font-size:14px}
+
+  .sheet{position:fixed;left:0;right:0;bottom:0;z-index:7;background:var(--paper);color:var(--ink);
+    padding:18px 22px calc(env(safe-area-inset-bottom) + 18px);transform:translateY(105%);transition:transform .32s cubic-bezier(.2,.9,.2,1)}
   .sheet.open{transform:none}
-  .sheet h3{margin:0 0 4px;font-size:17px}
-  #maeHint{font-size:13px;opacity:.8;line-height:1.55;margin:0 0 10px;display:none;color:#9fe8ff}
-  #fmsVal{font-size:44px;font-weight:800;text-align:center;font-variant-numeric:tabular-nums;margin:2px 0}
-  #fms{width:100%;height:36px;accent-color:#ff6b9a}
-  .scale{display:flex;justify-content:space-between;font-size:12px;opacity:.65;margin-bottom:12px}
-  .btn{display:block;width:100%;padding:14px;border-radius:14px;border:0;font-size:16px;font-weight:700;cursor:pointer;
-    color:#08101f;background:linear-gradient(90deg,#8ff3ff,#ff9ad0)}
-  .btn.ghost{background:transparent;color:#dfe9ff;border:1px solid rgba(160,200,255,.35);font-weight:500;margin-top:10px}
-  .overlay{position:fixed;inset:0;z-index:8;display:flex;align-items:center;justify-content:center;
-    background:radial-gradient(ellipse at 50% 40%,#0b1430,#02040a 75%);overflow:auto}
-  .card{width:min(380px,calc(100vw - 36px));padding:24px 22px;border-radius:22px;background:rgba(10,16,34,.7);
-    border:1px solid rgba(160,200,255,.2);margin:20px 0}
-  .card h1{margin:0;font-size:32px;letter-spacing:.2em;text-align:center;
-    background:linear-gradient(90deg,#8ff3ff,#c49bff,#ff8ac0);-webkit-background-clip:text;background-clip:text;color:transparent}
-  .card .sub{text-align:center;opacity:.7;font-size:13px;letter-spacing:.15em;margin:4px 0 16px}
-  .card p,.card li{font-size:14px;line-height:1.65;opacity:.9}
-  .card ul{padding-left:18px;margin:8px 0 14px}
-  .warn{font-size:12.5px;line-height:1.6;background:rgba(255,90,120,.1);border:1px solid rgba(255,90,120,.3);
-    border-radius:12px;padding:10px 12px;margin:0 0 16px;color:#ffd3de}
-  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
-  .stat{background:rgba(255,255,255,.04);border-radius:12px;padding:10px 12px}
-  .stat b{display:block;font-size:22px;font-variant-numeric:tabular-nums}
-  .stat span{font-size:12px;opacity:.65}
-  .rank{text-align:center;font-size:24px;font-weight:800;margin:6px 0 2px}
-  .idx{text-align:center;font-size:13px;opacity:.7}
-  canvas#spark{width:100%;height:80px;display:block;margin-top:4px}
+  .sheet .k{font:800 11px var(--mono);letter-spacing:.2em;opacity:.55;margin-bottom:6px}
+  .sheet h3{margin:0 0 12px;font:900 20px var(--sans)}
+  .sheet p{margin:0 0 12px;font-size:13.5px;line-height:1.6}
+  .big{font:900 15px var(--sans);margin:0 0 4px}
+  .huge{font:800 54px/1 var(--mono);color:var(--red);margin:2px 0 4px;letter-spacing:-.02em}
+  .huge small{font-size:20px;margin-left:6px;color:var(--ink)}
+  .scale{display:flex;justify-content:space-between;font:500 11px var(--mono);opacity:.6;margin:4px 0 14px}
+  input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:34px;background:transparent;margin:0}
+  input[type=range]::-webkit-slider-runnable-track{height:3px;background:var(--ink)}
+  input[type=range]::-moz-range-track{height:3px;background:var(--ink)}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:26px;height:26px;background:var(--red);margin-top:-11.5px;border:0;border-radius:0}
+  input[type=range]::-moz-range-thumb{width:26px;height:26px;background:var(--red);border:0;border-radius:0}
+  .mid{position:relative}
+  .mid:after{content:"";position:absolute;left:50%;top:8px;width:2px;height:18px;background:var(--ink);transform:translateX(-50%);pointer-events:none}
+  #fmsVal{font:800 34px var(--mono);min-width:44px}
+  .btn{display:block;width:100%;padding:15px;border:0;border-radius:0;font:900 16px var(--sans);letter-spacing:.1em;cursor:pointer;background:var(--red);color:var(--ink)}
+  .btn.dark{background:var(--ink);color:var(--paper)}
+
+  .poster{position:fixed;inset:0;z-index:8;background:var(--paper);color:var(--ink);overflow:auto;display:flex;justify-content:center}
+  .poster .in{width:min(420px,100%);padding:calc(env(safe-area-inset-top) + 26px) 24px calc(env(safe-area-inset-bottom) + 26px);box-sizing:border-box}
+  .tag{font:800 11px var(--mono);letter-spacing:.22em;display:flex;justify-content:space-between;border-bottom:2px solid var(--ink);padding-bottom:8px}
+  .title{font:900 min(26vw,110px)/.92 var(--sans);letter-spacing:-.02em;margin:18px 0 6px}
+  .title em{font-style:normal;color:var(--red)}
+  .lede{font-size:15px;line-height:1.6;margin:10px 0 18px}
+  ol.rules{list-style:none;padding:0;margin:0 0 18px;border-top:1px solid var(--ink)}
+  ol.rules li{display:flex;gap:14px;padding:11px 0;border-bottom:1px solid var(--ink);font-size:14px;line-height:1.5}
+  ol.rules b.n{font:800 13px var(--mono);min-width:22px}
+  .warn{border:2px solid var(--ink);padding:10px 12px;font-size:12.5px;line-height:1.6;margin-bottom:18px}
+  .foot{font:500 11px var(--mono);opacity:.6;margin-top:14px;text-align:center}
+  .rank{font:900 min(16vw,64px)/1 var(--sans);margin:16px 0 4px}
+  .idx{font:800 13px var(--mono);letter-spacing:.06em}
+  .grid{display:grid;grid-template-columns:1fr 1fr;border-top:2px solid var(--ink);margin:18px 0 0}
+  .grid div{padding:10px 0 12px;border-bottom:1px solid var(--ink)}
+  .grid div:nth-child(odd){border-right:1px solid var(--ink);padding-right:10px}
+  .grid div:nth-child(even){padding-left:12px}
+  .grid b{display:block;font:800 26px var(--mono)}
+  .grid span{font-size:12px}
+  .mae{background:var(--ink);color:var(--paper);padding:14px 14px 16px;margin:16px 0}
+  .mae .k{font:800 11px var(--mono);letter-spacing:.2em;opacity:.6}
+  .mae b{display:block;font:800 30px var(--mono);color:var(--red);margin:4px 0 2px}
+  canvas#spark{width:100%;height:110px;display:block;margin:6px 0 16px}
   .hide{display:none!important}
 </style>
 <script type="importmap">
@@ -62,233 +98,278 @@
 </head>
 <body>
 <canvas id="gl"></canvas>
-<div id="hit"></div>
-<div class="hud" id="hudL"><div id="lives">♥♥♥</div><div id="time">0.0 s</div><div id="score">0</div></div>
-<div class="hud" id="hudC">第 1 关 · 热身</div>
-<button id="stop">停</button>
-<div id="banner"><div class="n" id="bN"></div><div class="t" id="bT"></div><div class="d" id="bD"></div></div>
+<div id="hud">
+  <div id="hudL"><div id="lives"></div><div id="time">000.0 s</div><div id="spd">000 km/h</div><div id="score">00000</div></div>
+  <div id="hudC">01 热身</div>
+</div>
+<button id="stop" aria-label="停止">停</button>
+<div id="band"><div class="row"><span class="n" id="bN">01</span><span class="t" id="bT"></span></div><div class="d" id="bD"></div></div>
 <div id="pop"></div>
+<div id="fix"></div><div id="fixT">盯住中间</div>
+<div id="count">3</div>
+<div id="prompt"><div class="a" id="pA"></div><br><div class="b" id="pB"></div></div>
 
-<div class="sheet" id="sheet">
-  <p id="maeHint">画面现在是静止的。你是不是觉得它在慢慢往回缩？这就是<b>运动后效</b>：你的大脑还在补偿刚才的高速前进。</p>
-  <h3>现在有多晕？</h3>
-  <div id="fmsVal">0</div>
-  <input type="range" id="fms" min="0" max="20" step="1" value="0">
-  <div class="scale"><span>0 完全没事</span><span>10 有点难受</span><span>20 马上要吐</span></div>
-  <button class="btn" id="fmsOk">继续</button>
+<div class="sheet" id="nullSheet">
+  <div class="k">FREEZE · 画面已冻结</div>
+  <h3>把它调到完全静止</h3>
+  <div class="mid"><input type="range" id="nullS" min="-100" max="100" step="1" value="0"></div>
+  <div class="scale"><span id="nullL">← 让它往里</span><span id="nullR">让它往外 →</span></div>
+  <button class="btn" id="nullOk">现在静止了</button>
 </div>
 
-<div class="overlay" id="intro">
-  <div class="card">
-    <h1>抗晕挑战</h1>
-    <div class="sub">你能在隧道里撑多久？</div>
-    <p>在高速隧道里，<b>手指按住屏幕指向哪里，飞船就去哪里</b>：它会沿着管壁跑到你手指的方向，从光环的缺口穿过去（电脑上直接移动鼠标，或用 ← →）。贴着边缘穿过算<b>擦边</b>，有额外加分。</p>
-    <p>每一关都会加入一种最容易让人晕的视觉把戏。每隔 30 秒，画面会冻结，问你有多晕。</p>
-    <div class="warn">⚠️ 这个游戏是故意让人晕的。请<b>坐着</b>玩，手机离眼睛 20–30 cm 效果最强。有光敏性癫痫、前庭或平衡问题、偏头痛或正在怀孕，请不要玩。感到不适就随时按右上角的「停」。</div>
+<div class="sheet" id="revSheet">
+  <div class="big" id="revA">你的大脑正在以</div>
+  <div class="huge" id="revN">0<small>km/h</small></div>
+  <div class="big" id="revB">倒车。</div>
+  <p id="revP"></p>
+  <div class="k" style="margin-top:6px">现在有多晕？ 0–20</div>
+  <div style="display:flex;align-items:center;gap:14px"><div id="fmsVal">0</div><input type="range" id="fms" min="0" max="20" step="1" value="0"></div>
+  <div class="scale"><span>0 完全没事</span><span>10 有点难受</span><span>20 马上要吐</span></div>
+  <button class="btn dark" id="fmsOk">继续</button>
+</div>
+
+<div class="poster" id="intro">
+  <div class="in">
+    <div class="tag"><span>VERTIGO TEST</span><span>No.01</span></div>
+    <div class="title">抗晕<br><em>挑战</em></div>
+    <div class="lede">一条越来越不讲理的隧道。看你能撑多久，顺便亲眼看看你的大脑是怎么被骗的。</div>
+    <ol class="rules">
+      <li><b class="n">01</b><span><b>手指指向哪里，红色飞船就去哪里。</b>手指不用压在飞船上，看的是方向。电脑上移动鼠标就行。</span></li>
+      <li><b class="n">02</b><span>从白色挡板的缺口穿过去。管壁上的红色虚线是你的航线，下一块要撞上的挡板会提前变红。贴边穿过算<b>擦边</b>。</span></li>
+      <li><b class="n">03</b><span>每关最后几秒，<b>盯住中间的红色十字</b>。随后画面会冻结，接下来的事会有点奇怪。</span></li>
+    </ol>
+    <div class="warn">这个游戏是<b>故意让人晕的</b>。请坐着玩，手机离眼睛 20–30 cm。有光敏性癫痫、前庭或平衡问题、偏头痛，或正在怀孕，请不要玩。不舒服就按右上角的「停」。</div>
     <button class="btn" id="go">我坐好了，开始</button>
-    <div id="bestLine" class="idx" style="margin-top:12px"></div>
+    <div class="foot" id="bestLine"></div>
   </div>
 </div>
 
-<div class="overlay hide" id="result">
-  <div class="card">
-    <div class="sub" id="rReason" style="margin-bottom:6px"></div>
+<div class="poster hide" id="result">
+  <div class="in">
+    <div class="tag"><span>RESULT</span><span id="rReason"></span></div>
     <div class="rank" id="rRank"></div>
     <div class="idx" id="rIdx"></div>
-    <div class="stats">
-      <div class="stat"><b id="rTime">0</b><span>坚持时间</span></div>
-      <div class="stat"><b id="rLevel">1</b><span>到达关卡</span></div>
-      <div class="stat"><b id="rFms">0</b><span>最高晕动值 (0–20)</span></div>
-      <div class="stat"><b id="rNear">0</b><span>擦边次数</span></div>
+    <div class="grid">
+      <div><b id="rTime">0</b><span>坚持时间</span></div>
+      <div><b id="rLevel">1</b><span>到达关卡</span></div>
+      <div><b id="rFms">0</b><span>最高晕动值 / 20</span></div>
+      <div><b id="rNear">0</b><span>擦边次数</span></div>
     </div>
-    <div style="font-size:12px;opacity:.65">你的晕动曲线</div>
-    <canvas id="spark" width="600" height="160"></canvas>
-    <p style="font-size:13px;opacity:.75;margin-top:12px">先看看远处，深呼吸几次，等不晕了再来一局。</p>
+    <div class="mae"><div class="k">最强运动后效</div><b id="rMae">—</b><div id="rMaeT" style="font-size:13px;opacity:.8"></div></div>
+    <div class="idx">晕动曲线</div>
+    <canvas id="spark" width="760" height="220"></canvas>
     <button class="btn" id="again">再来一局</button>
+    <div class="foot">先看看远处，眨眨眼，等不晕了再来。</div>
   </div>
 </div>
 
 <script type="module">
 import * as THREE from 'three';
 
-/* ---------------- setup ---------------- */
 const $ = id => document.getElementById(id);
+const DEG = Math.PI / 180;
+const INK = 0x141210, STONE = 0x6a645a, PAPER = 0xefe8da, RED = 0xff4a1c;
+const coarse = matchMedia('(pointer:coarse)').matches;
+
+/* ================= renderer ================= */
 const canvas = $('gl');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-renderer.setPixelRatio(Math.min(devicePixelRatio, matchMedia('(pointer:coarse)').matches ? 1.5 : 2));
+renderer.setPixelRatio(Math.min(devicePixelRatio, coarse ? 1.5 : 2));
 renderer.setSize(innerWidth, innerHeight);
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;   // flat print colours
+THREE.ColorManagement.enabled = false;
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x000000);
+scene.background = new THREE.Color(INK);
+scene.fog = new THREE.Fog(INK, 80, 205);
 const camera = new THREE.PerspectiveCamera(75, innerWidth / innerHeight, 0.1, 420);
 
-const RT = 6, RP = 4.2, SHIP_Z = -7, LEN = 220, SLOTS = 12, SLOT = Math.PI * 2 / SLOTS, DEG = Math.PI / 180;
-function fitCamera(fovBoost = 0) {
-  const a = innerWidth / innerHeight;
-  const half = Math.atan((RP * 1.22) / -SHIP_Z);          // orbit must fit in the narrow dimension
+const RT = 6, RP = 4.2, SHIP_Z = -7, LEN = 220, SLOTS = 12, SLOT = Math.PI * 2 / SLOTS;
+function fitCamera(boost = 0) {
+  const a = innerWidth / innerHeight, half = Math.atan((RP * 1.25) / -SHIP_Z);
   const vHalf = a < 1 ? Math.atan(Math.tan(half) / a) : half;
-  camera.aspect = a; camera.fov = Math.min(2 * vHalf / DEG + fovBoost, 150); camera.updateProjectionMatrix();
+  camera.aspect = a; camera.fov = Math.min(2 * vHalf / DEG + boost, 150); camera.updateProjectionMatrix();
 }
 fitCamera();
 
-/* ---------------- tunnel shader ---------------- */
+/* ================= op-art tunnel ================= */
+const U = {
+  uScroll: { value: 0 }, uLen: { value: LEN }, uBend: { value: new THREE.Vector2() },
+  uInk: { value: new THREE.Color(INK) }, uStone: { value: new THREE.Color(STONE) }, uRed: { value: new THREE.Color(RED) },
+  uPatA: { value: 0 }, uPatB: { value: 0 }, uMix: { value: 1 }, uPhi: { value: -Math.PI / 2 }, uAim: { value: 0 },
+};
 const tunnelMat = new THREE.ShaderMaterial({
-  side: THREE.BackSide,
-  uniforms: {
-    uScroll: { value: 0 }, uTime: { value: 0 }, uLen: { value: LEN }, uBend: { value: new THREE.Vector2() },
-    uCol: { value: new THREE.Color(0x4fe3ff) }, uCol2: { value: new THREE.Color(0x2244ff) }, uBright: { value: 1 },
-  },
-  vertexShader: `
-    uniform vec2 uBend; varying vec3 vL;
+  side: THREE.BackSide, uniforms: U,
+  vertexShader: `uniform vec2 uBend; varying vec3 vL;
     void main(){ vL = position; vec3 p = position; p.xy += uBend * p.z * p.z;
       gl_Position = projectionMatrix * modelViewMatrix * vec4(p,1.0); }`,
   fragmentShader: `
-    uniform float uScroll, uTime, uLen, uBright; uniform vec3 uCol, uCol2; varying vec3 vL;
-    float line(float x, float w){ float d = 0.5 - abs(fract(x) - 0.5); float fw = fwidth(x);
-      return 1.0 - smoothstep(w, w + fw * 1.5, d); }
+    uniform float uScroll,uLen,uPatA,uPatB,uMix,uPhi,uAim; uniform vec3 uInk,uStone,uRed; varying vec3 vL;
+    float sq(float x,float duty,float fw){ fw=fw*1.3+1e-4; float f=fract(x);
+      return smoothstep(0.,fw,f)*(1.-smoothstep(duty,duty+fw,f)); }
+    float pat(float id,float A,float z,float fA,float fz){
+      if(id<0.5) return sq(z*.09,.5,fz*.09);
+      if(id<1.5) return sq(z*.09+A*3.,.5,fz*.09+fA*3.);
+      if(id<2.5) return abs(sq(z*.09,.5,fz*.09)-sq(A*12.,.5,fA*12.));
+      if(id<3.5) return sq(z*.09+.3*sin(A*25.13+z*.05),.5,fz*.12+fA*1.2);
+      if(id<4.5) return sq(z*.09,.32,fz*.09)*sq(A*16.,.5,fA*16.);
+      if(id<5.5) return sq(z*.2,.3,fz*.2);
+      return abs(sq(z*.09+A*3.,.5,fz*.09+fA*3.)-sq(A*12.,.5,fA*12.));
+    }
     void main(){
-      float a = (atan(vL.y, vL.x) / 6.2831853 + 0.5) * 16.0;
-      float z = (-vL.z + uScroll) * 0.11;
-      float la = line(a, 0.025), lz = line(z, 0.035);
-      float chk = mod(floor(a) + floor(z), 2.0);
-      float f = clamp(-vL.z / uLen, 0.0, 1.0);
-      float pulse = 0.5 + 0.5 * sin(z * 0.6 - uTime * 3.0);
-      vec3 c = uCol2 * (0.05 + 0.05 * chk) + uCol * (la * 0.75 + lz * (0.7 + 0.5 * pulse));
-      c *= pow(1.0 - f, 1.4) * uBright;
-      c += uCol2 * 0.18 * f * (1.0 - f);
-      gl_FragColor = vec4(c, 1.0);
+      float ang=atan(vL.y,vL.x), A=ang/6.2831853+.5, z=-vL.z+uScroll;
+      float fA=min(fwidth(A),fwidth(fract(A+.5))), fz=fwidth(z);
+      float p=mix(pat(uPatA,A,z,fA,fz),pat(uPatB,A,z,fA,fz),uMix);
+      float f=clamp(-vL.z/uLen,0.,1.), fade=pow(1.-f,1.25);
+      vec3 c=mix(uInk,uStone,p*fade);
+      float d=abs(atan(sin(ang-uPhi),cos(ang-uPhi))), w=.016+fA*9.4;
+      float dash=sq(z*.22,.55,fz*.22);
+      float al=(1.-smoothstep(w*.45,w,d))*smoothstep(8.,12.,-vL.z)*(1.-smoothstep(55.,120.,-vL.z))*uAim*dash;
+      gl_FragColor=vec4(mix(c,uRed,al),1.);
     }`,
 });
-const tunnelGeo = new THREE.CylinderGeometry(RT, RT, LEN, 64, 80, true);
+const tunnelGeo = new THREE.CylinderGeometry(RT, RT, LEN, 72, 90, true);
 tunnelGeo.rotateX(Math.PI / 2); tunnelGeo.translate(0, 0, -LEN / 2 + 3);
 scene.add(new THREE.Mesh(tunnelGeo, tunnelMat));
 
-// glow at the end of the tunnel
-function glowTex() {
-  const c = document.createElement('canvas'); c.width = c.height = 128; const g = c.getContext('2d');
-  const gr = g.createRadialGradient(64, 64, 0, 64, 64, 64);
-  gr.addColorStop(0, 'rgba(255,255,255,1)'); gr.addColorStop(0.25, 'rgba(255,255,255,.35)'); gr.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = gr; g.fillRect(0, 0, 128, 128); return new THREE.CanvasTexture(c);
-}
-const GLOW = glowTex();
-const endGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0x4fe3ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-endGlow.scale.setScalar(70); scene.add(endGlow);
-
-/* ---------------- speed streaks ---------------- */
-const SN = 520, sPos = new Float32Array(SN * 6), sBase = new Float32Array(SN * 3);
-for (let i = 0; i < SN; i++) {
-  const r = RT * (0.25 + 0.7 * Math.sqrt(Math.random())), t = Math.random() * Math.PI * 2;
-  sBase[i * 3] = Math.cos(t) * r; sBase[i * 3 + 1] = Math.sin(t) * r; sBase[i * 3 + 2] = -Math.random() * LEN;
-}
-const sGeo = new THREE.BufferGeometry(); sGeo.setAttribute('position', new THREE.BufferAttribute(sPos, 3));
-const streaks = new THREE.LineSegments(sGeo, new THREE.LineBasicMaterial({ color: 0xcfefff, transparent: true, opacity: 0.55, blending: THREE.AdditiveBlending, depthWrite: false }));
-streaks.frustumCulled = false; scene.add(streaks);
-
-/* ---------------- rings (obstacles) ---------------- */
-const sectorGeo = new THREE.RingGeometry(RT * 0.4, RT * 0.985, 8, 1, 0.012, SLOT - 0.024);
-const sectorEdge = new THREE.EdgesGeometry(sectorGeo);
+/* ================= obstacles: solid paper slabs ================= */
+const slabShape = new THREE.Shape();
+{ const a0 = 0.02, a1 = SLOT - 0.02, ro = RT * 0.985, ri = RT * 0.42;
+  slabShape.absarc(0, 0, ro, a0, a1, false); slabShape.absarc(0, 0, ri, a1, a0, true); slabShape.closePath(); }
+const slabGeo = new THREE.ExtrudeGeometry(slabShape, { depth: 0.9, bevelEnabled: false, curveSegments: 10 });
+slabGeo.translate(0, 0, -0.9);
+const slabEdges = new THREE.EdgesGeometry(slabGeo, 25);
+const M = {
+  cap: new THREE.MeshBasicMaterial({ color: PAPER }), side: new THREE.MeshBasicMaterial({ color: 0xa79f90 }),
+  warnCap: new THREE.MeshBasicMaterial({ color: RED }), warnSide: new THREE.MeshBasicMaterial({ color: 0xa8300f }),
+  edge: new THREE.LineBasicMaterial({ color: INK }),
+};
+const NORMAL = [M.cap, M.side], WARN = [M.warnCap, M.warnSide];
 const rings = [];
 for (let k = 0; k < 11; k++) {
-  const g = new THREE.Group();
-  const mat = new THREE.MeshBasicMaterial({ color: 0xff3d8b, transparent: true, opacity: 0.8, side: THREE.DoubleSide, depthWrite: false });
-  const emat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 1 });
-  const segs = [];
+  const g = new THREE.Group(), segs = [];
   for (let i = 0; i < SLOTS; i++) {
-    const m = new THREE.Mesh(sectorGeo, mat); m.rotation.z = i * SLOT;
-    m.add(new THREE.LineSegments(sectorEdge, emat)); g.add(m); segs.push(m);
+    const m = new THREE.Mesh(slabGeo, NORMAL); m.rotation.z = i * SLOT;
+    m.add(new THREE.LineSegments(slabEdges, M.edge)); g.add(m); segs.push(m);
   }
-  scene.add(g);
-  rings.push({ g, mat, emat, segs, blocked: new Array(SLOTS).fill(false), z: 0, judged: false, active: false });
+  scene.add(g); rings.push({ g, segs, blocked: new Array(SLOTS).fill(false), z: 0, judged: false });
 }
 
-/* ---------------- ship ---------------- */
-const ship = new THREE.Group();
-const hull = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.1, 4), new THREE.MeshBasicMaterial({ color: 0xffffff }));
-hull.rotation.x = -Math.PI / 2;
-const shipGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: GLOW, color: 0x7ff6ff, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }));
-shipGlow.scale.setScalar(2.4);
-ship.add(hull, shipGlow); scene.add(ship);
-const orbitPts = []; for (let i = 0; i <= 96; i++) { const t = i / 96 * Math.PI * 2; orbitPts.push(new THREE.Vector3(Math.cos(t) * RP, Math.sin(t) * RP, SHIP_Z)); }
-const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(orbitPts), new THREE.LineBasicMaterial({ color: 0x7ff6ff, transparent: true, opacity: 0.16 }));
-scene.add(orbit);
+/* ================= ship ================= */
+const chev = new THREE.Shape();
+chev.moveTo(0, -0.62); chev.lineTo(0.78, 0.42); chev.lineTo(0, 0.14); chev.lineTo(-0.78, 0.42); chev.closePath();
+const chevGeo = new THREE.ExtrudeGeometry(chev, { depth: 0.28, bevelEnabled: false }); chevGeo.translate(0, 0, -0.14);
+const shipRoot = new THREE.Group(), shipBank = new THREE.Group();
+const top = mat => { mat.depthTest = false; mat.depthWrite = false; mat.fog = false; return mat; };
+const hullOut = new THREE.Mesh(chevGeo, top(new THREE.MeshBasicMaterial({ color: INK }))); hullOut.scale.set(1.35, 1.35, 1); hullOut.position.z = -0.02; hullOut.renderOrder = 20;
+const hull = new THREE.Mesh(chevGeo, [top(new THREE.MeshBasicMaterial({ color: RED })), top(new THREE.MeshBasicMaterial({ color: 0x9e2a0c }))]); hull.renderOrder = 21;
+shipBank.add(hullOut, hull); shipRoot.add(shipBank); scene.add(shipRoot);
+const pulse = new THREE.Mesh(new THREE.RingGeometry(0.92, 1, 48), top(new THREE.MeshBasicMaterial({ color: RED, transparent: true })));
+pulse.renderOrder = 19; scene.add(pulse);
+const orbitPts = []; for (let i = 0; i <= 120; i++) { const t = i / 120 * Math.PI * 2; orbitPts.push(new THREE.Vector3(Math.cos(t) * RP, Math.sin(t) * RP, SHIP_Z)); }
+const orbit = new THREE.Line(new THREE.BufferGeometry().setFromPoints(orbitPts), new THREE.LineDashedMaterial({ color: PAPER, dashSize: 0.18, gapSize: 0.22, transparent: true, opacity: 0.32, fog: false }));
+orbit.computeLineDistances(); scene.add(orbit);
+const tick = new THREE.Mesh(new THREE.PlaneGeometry(0.09, 0.9), top(new THREE.MeshBasicMaterial({ color: RED, transparent: true, opacity: 0 })));
+tick.renderOrder = 18; scene.add(tick);
+const TN = 48, tPos = new Float32Array(TN * 2 * 3), trail = [];
+const tGeo = new THREE.BufferGeometry(); tGeo.setAttribute('position', new THREE.BufferAttribute(tPos, 3));
+{ const idx = []; for (let i = 0; i < TN - 1; i++) { const a = i * 2; idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2); } tGeo.setIndex(idx); }
+const trailMesh = new THREE.Mesh(tGeo, new THREE.MeshBasicMaterial({ color: RED, side: THREE.DoubleSide, fog: false }));
+trailMesh.frustumCulled = false; scene.add(trailMesh);
 
-/* ---------------- levels ---------------- */
+/* ================= levels ================= */
 const LEVELS = [
-  { name: '热身', desc: '手指指向哪，飞船就去哪。躲开光环，贴着边缘穿过算擦边，有加分。', col: 0x4fe3ff, col2: 0x1b3cff, ring: 0xff3d8b, fx: {} },
-  { name: '翻滚', desc: '整个世界开始旋转。眼睛说你在转，身体说没有。', col: 0xff5fd2, col2: 0x5a1bff, ring: 0x3dffb8, fx: { roll: 1 } },
-  { name: '摇摆', desc: '0.2 Hz 的晃动，晕船最爱的频率。', col: 0xffc04f, col2: 0xff3b1b, ring: 0x4fa8ff, fx: { wobble: 1 } },
-  { name: '弯道', desc: '隧道开始拐弯，可你的身体一直是直的。', col: 0x8dff5a, col2: 0x0a7a4a, ring: 0xff5f5f, fx: { bend: 1, gyro: 1 } },
-  { name: '变速', desc: '忽快忽慢，猝不及防。', col: 0xb68cff, col2: 0x3a0f9a, ring: 0xffe14f, fx: { surge: 1 } },
-  { name: '无参照', desc: '所有参照物都消失了，只剩下流动。', col: 0xe8f2ff, col2: 0x223355, ring: 0xff4fa0, fx: { blind: 1, bend: 0.5 } },
-  { name: '极限', desc: '全部一起来。撑住。', col: 0xff4f4f, col2: 0x7a0010, ring: 0x4ffff0, fx: { roll: 0.6, wobble: 0.8, bend: 0.8, surge: 0.8, blind: 0.6, gyro: 1 } },
+  { name: '热身', desc: '跟着红色虚线，穿过挡板的缺口。', pat: 0, fx: {} },
+  { name: '翻滚', desc: '世界开始旋转。眼睛说你在转，身体说没有。', pat: 1, fx: { roll: 1 } },
+  { name: '摇摆', desc: '0.2 Hz 的晃动，晕船最爱的频率。', pat: 2, fx: { wobble: 1 } },
+  { name: '弯道', desc: '隧道在拐弯，可你的身体一直是直的。', pat: 3, fx: { bend: 1, gyro: 1 } },
+  { name: '变速', desc: '忽快忽慢，猝不及防。', pat: 4, fx: { surge: 1 } },
+  { name: '无参照', desc: '数字、轨道、航线，全都会消失。', pat: 5, fx: { blind: 1, bend: 0.5 } },
+  { name: '极限', desc: '全部一起来。撑住。', pat: 6, fx: { roll: 0.6, wobble: 0.8, bend: 0.8, surge: 0.8, blind: 0.6, gyro: 1 } },
 ];
-const LEVEL_DUR = 24;
+const LEVEL_DUR = 26, FINAL_EVERY = 30, CALM = 5;
+const REAL_WORLD = [
+  '趁它还没消失：把视线移到手机旁边的桌面上。桌面是不是也在缩？',
+  '看一眼你的手。它是不是在慢慢变小、往远处退？',
+  '盯着屏幕旁边任何一个静止的东西数到三。它在动吗？',
+  '后效会在十几秒内消失。下一次冻结前，试着更专注地盯住十字。',
+];
 
-/* ---------------- audio ---------------- */
-let ac = null, eng = null;
+/* ================= audio ================= */
+let ac = null, wind = null;
 function initAudio() {
   try {
     ac = new (window.AudioContext || window.webkitAudioContext)();
-    const o1 = ac.createOscillator(), o2 = ac.createOscillator(), f = ac.createBiquadFilter(), g = ac.createGain();
-    o1.type = 'sawtooth'; o2.type = 'sawtooth'; o2.detune.value = 14; f.type = 'lowpass'; f.Q.value = 6; g.gain.value = 0;
-    o1.connect(f); o2.connect(f); f.connect(g).connect(ac.destination); o1.start(); o2.start();
-    eng = { o1, o2, f, g };
+    const len = ac.sampleRate * 2, buf = ac.createBuffer(1, len, ac.sampleRate), d = buf.getChannelData(0);
+    let last = 0; for (let i = 0; i < len; i++) { last = (last + 0.02 * (Math.random() * 2 - 1)) / 1.02; d[i] = last * 3.5; }
+    const src = ac.createBufferSource(); src.buffer = buf; src.loop = true;
+    const bp = ac.createBiquadFilter(); bp.type = 'bandpass'; bp.Q.value = 0.8;
+    const g = ac.createGain(); g.gain.value = 0;
+    const hum = ac.createOscillator(); hum.type = 'triangle'; const hg = ac.createGain(); hg.gain.value = 0;
+    src.connect(bp).connect(g).connect(ac.destination); hum.connect(hg).connect(ac.destination); src.start(); hum.start();
+    wind = { bp, g, hum, hg };
   } catch (e) { ac = null; }
 }
-function tone(freq, dur, vol, type = 'sine', f2) {
+function tone(f, dur, vol, type = 'sine', f2) {
   if (!ac) return; const t = ac.currentTime, o = ac.createOscillator(), g = ac.createGain();
-  o.type = type; o.frequency.setValueAtTime(freq, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
+  o.type = type; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + dur);
   g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g).connect(ac.destination); o.start(t); o.stop(t + dur + 0.05);
 }
-function noise(dur, vol) {
-  if (!ac) return; const b = ac.createBuffer(1, ac.sampleRate * dur, ac.sampleRate), d = b.getChannelData(0);
-  for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length) ** 2;
-  const s = ac.createBufferSource(), g = ac.createGain(), f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 900;
+function thud(vol) {
+  if (!ac) return; const n = ac.sampleRate * 0.3, b = ac.createBuffer(1, n, ac.sampleRate), d = b.getChannelData(0);
+  for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n) ** 3;
+  const s = ac.createBufferSource(), f = ac.createBiquadFilter(), g = ac.createGain(); f.type = 'lowpass'; f.frequency.value = 700;
   s.buffer = b; g.gain.value = vol; s.connect(f).connect(g).connect(ac.destination); s.start();
 }
 const sfx = {
-  hit: () => { noise(0.35, 0.5); tone(90, 0.4, 0.3, 'square', 40); },
-  near: () => tone(600, 0.18, 0.12, 'triangle', 1800),
-  level: () => { tone(523, 0.6, 0.1); setTimeout(() => tone(659, 0.6, 0.1), 90); setTimeout(() => tone(784, 0.8, 0.1), 180); },
-  beat: () => { tone(58, 0.16, 0.5); setTimeout(() => tone(52, 0.18, 0.4), 170); },
+  hit: () => { thud(0.9); tone(110, 0.35, 0.25, 'square', 45); },
+  near: k => tone(520 + k * 60, 0.09, 0.12, 'square', 1100 + k * 80),
+  tick: hi => tone(hi ? 880 : 440, hi ? 0.25 : 0.08, 0.14, 'square'),
+  beat: () => { tone(56, 0.15, 0.55); setTimeout(() => tone(50, 0.17, 0.4), 165); },
+  reveal: () => { tone(196, 0.9, 0.12, 'triangle'); setTimeout(() => tone(147, 1.2, 0.12, 'triangle'), 140); },
+  pass: () => tone(1500, 0.03, 0.03, 'square'),
 };
 function engine(on, v = 0) {
-  if (!eng) return; const t = ac.currentTime;
-  eng.g.gain.setTargetAtTime(on ? 0.045 : 0, t, on ? 0.1 : 0.03);
-  eng.o1.frequency.setTargetAtTime(38 + v * 1.1, t, 0.08); eng.o2.frequency.setTargetAtTime(38 + v * 1.1, t, 0.08);
-  eng.f.frequency.setTargetAtTime(260 + v * 14, t, 0.08);
+  if (!wind) return; const t = ac.currentTime;
+  wind.g.gain.setTargetAtTime(on ? 0.5 : 0, t, on ? 0.15 : 0.03);
+  wind.hg.gain.setTargetAtTime(on ? 0.035 : 0, t, on ? 0.15 : 0.03);
+  wind.bp.frequency.setTargetAtTime(180 + v * 9, t, 0.1);
+  wind.hum.frequency.setTargetAtTime(36 + v * 0.7, t, 0.1);
 }
 
-/* ---------------- state ---------------- */
+/* ================= state ================= */
 let S;
 function newState() {
-  return { running: false, frozen: false, t: 0, play: 0, level: -1, lvT: 0, lives: 3, inv: 0, dist: 0, bonus: 0, near: 0, combo: 0,
-    phi: -Math.PI / 2, phiT: -Math.PI / 2, speed: 0, surge: 1, surgeT: 1, surgeClock: 0, roll: 0, fovKick: 0, shake: 0, slow: 1,
+  return { phase: 'demo', play: 0, level: 0, lvStart: 0, nextFreeze: LEVEL_DUR, lives: 3, inv: 0, hitStop: 0,
+    dist: 0, bonus: 0, near: 0, combo: 0, phi: -Math.PI / 2, phiT: -Math.PI / 2, omega: 0,
+    speed: 0, surge: 1, surgeT: 1, surgeClock: 0, roll: 0, fovKick: 0, shake: 0, slow: 1, t: 0, tw: 0,
     fx: { roll: 0, wobble: 0, bend: 0, surge: 0, blind: 0, gyro: 0 }, lastC: 9, spiral: 0, spiralDir: 1,
-    fmsLog: [{ t: 0, v: 0 }], nextFms: 30, maxFms: 0, firstFreeze: true };
+    calm: false, nullMode: 'exp', nullV: 0, nullR: 0, maes: [], fmsLog: [{ t: 0, v: 0 }], maxFms: 0, freezes: 0, count: 0, pulseT: 0 };
 }
 S = newState();
+const LIVE = () => S.phase === 'play';
 
-/* ---------------- input ---------------- */
-// absolute aiming: the ship goes to wherever your finger points (works through roll / sway / bends)
+/* ================= input: absolute aiming ================= */
 let dragging = false, aim = null; const keys = {};
 const ray = new THREE.Raycaster(), ndc = new THREE.Vector2(), shipPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), -SHIP_Z), hitP = new THREE.Vector3();
-const blocked = e => e.target.closest && e.target.closest('button,.sheet,.overlay');
-addEventListener('pointerdown', e => { if (blocked(e)) return; dragging = true; aim = { x: e.clientX, y: e.clientY }; });
-addEventListener('pointermove', e => {
-  if (blocked(e)) return;
-  if (dragging || e.pointerType === 'mouse') aim = { x: e.clientX, y: e.clientY };
-});
+const blockedEl = e => e.target.closest && e.target.closest('button,.sheet,.poster');
+addEventListener('pointerdown', e => { if (blockedEl(e)) return; dragging = true; aim = { x: e.clientX, y: e.clientY }; });
+addEventListener('pointermove', e => { if (blockedEl(e)) return; if (dragging || e.pointerType === 'mouse') aim = { x: e.clientX, y: e.clientY }; });
 const release = e => { dragging = false; if (e.pointerType !== 'mouse') aim = null; };
 addEventListener('pointerup', release); addEventListener('pointercancel', release);
+addEventListener('keydown', e => keys[e.key] = true); addEventListener('keyup', e => keys[e.key] = false);
 const wrapA = a => Math.atan2(Math.sin(a), Math.cos(a));
-addEventListener('keydown', e => { keys[e.key] = true; }); addEventListener('keyup', e => { keys[e.key] = false; });
 let gyro = null, gyro0 = null;
 addEventListener('deviceorientation', e => { if (e.beta == null) return; gyro = { b: e.beta, g: e.gamma }; if (!gyro0) gyro0 = { ...gyro }; });
 
-/* ---------------- obstacles ---------------- */
-function difficulty() { return Math.min(1, (Math.max(0, S.level) + Math.min(1, S.lvT / LEVEL_DUR)) / 6 + Math.max(0, S.play - 7 * LEVEL_DUR) / 200); }
+/* ================= obstacles ================= */
+function difficulty() {
+  const lvT = Math.min(1, (S.play - S.lvStart) / LEVEL_DUR);
+  return Math.min(1, (S.level + lvT) / 6 + Math.max(0, S.play - 7 * LEVEL_DUR) / 240);
+}
+function clearRing(r) { r.blocked.fill(false); r.segs.forEach(m => m.visible = false); }
 function makePattern(r) {
+  if (S.calm || (S.phase === 'demo' && Math.random() < 0.3)) { clearRing(r); return; }
   const d = difficulty();
   let c;
   if (S.spiral > 0) { c = (S.lastC + S.spiralDir * 2 + SLOTS) % SLOTS; S.spiral--; }
@@ -300,241 +381,319 @@ function makePattern(r) {
   r.blocked.fill(true);
   const open = c0 => { for (let i = 0; i < w; i++) r.blocked[(c0 - (w >> 1) + i + SLOTS) % SLOTS] = false; };
   open(c); if (Math.random() < 0.22 && S.spiral === 0) open((c + 6) % SLOTS);
-  S.lastC = c;
-  r.segs.forEach((m, i) => m.visible = r.blocked[i]);
+  S.lastC = c; r.segs.forEach((m, i) => m.visible = r.blocked[i]);
 }
-function spacing() { return 30 - 11 * difficulty(); }
-function resetRings() {
-  rings.forEach((r, k) => { r.active = true; r.judged = false; r.z = -70 - k * spacing(); makePattern(r); });
-}
+const spacing = () => 30 - 11 * difficulty();
+function resetRings() { rings.forEach((r, k) => { r.judged = false; r.z = -110 - k * spacing(); makePattern(r); }); }
+function clearAhead(dist) { for (const r of rings) if (r.z > SHIP_Z - dist && r.z < SHIP_Z + 0.5) { clearRing(r); r.judged = true; } }
+function clearBeyond(dist) { for (const r of rings) if (r.z < SHIP_Z - dist) clearRing(r); }
 
-/* ---------------- UI helpers ---------------- */
-let popT = null;
-function pop(text, color = '#7ff') {
-  const p = $('pop'); p.textContent = text; p.style.color = color; p.style.opacity = 1; p.style.transform = 'translate(-50%,-60%)';
-  clearTimeout(popT); popT = setTimeout(() => { p.style.opacity = 0; p.style.transform = 'translate(-50%,-50%)'; }, 550);
+/* ================= UI helpers ================= */
+const proj = new THREE.Vector3();
+function toScreen(v3) { proj.copy(v3).project(camera); return { x: (proj.x + 1) / 2 * innerWidth, y: (1 - proj.y) / 2 * innerHeight }; }
+let popTO;
+function pop(text) {
+  const p = $('pop'), s = toScreen(shipRoot.position); p.textContent = text; p.style.left = s.x + 'px'; p.style.top = s.y + 'px';
+  p.style.opacity = 1; clearTimeout(popTO); popTO = setTimeout(() => p.style.opacity = 0, 520);
 }
-let banT = null;
-function banner(n, t, d, col) {
-  $('bN').textContent = n; $('bT').textContent = t; $('bD').textContent = d; $('bT').style.color = col;
-  $('banner').style.opacity = 1; clearTimeout(banT); banT = setTimeout(() => $('banner').style.opacity = 0, 2600);
+let bandTO;
+function band(i) {
+  const L = LEVELS[i]; $('bN').textContent = String(i + 1).padStart(2, '0'); $('bT').textContent = L.name;
+  let d = L.desc; if (L.fx.gyro && gyro) d += ' 动一动手机试试。'; $('bD').textContent = d;
+  $('band').classList.add('on'); clearTimeout(bandTO); bandTO = setTimeout(() => $('band').classList.remove('on'), 2600);
 }
-const hex = c => '#' + new THREE.Color(c).getHexString();
-
-function enterLevel(i) {
-  S.level = i; S.lvT = 0; const L = LEVELS[i];
-  tunnelMat.uniforms.uCol.value.setHex(L.col); tunnelMat.uniforms.uCol2.value.setHex(L.col2);
-  endGlow.material.color.setHex(L.col); rings.forEach(r => r.mat.color.setHex(L.ring));
-  $('hudC').textContent = `第 ${i + 1} 关 · ${L.name}`;
-  let d = L.desc; if (L.fx.gyro && gyro) d += ' 再试试动一动手机。';
-  banner(`第 ${i + 1} 关`, L.name, d, hex(L.col)); sfx.level();
+function renderLives() { $('lives').innerHTML = [0, 1, 2].map(i => `<i class="${i < S.lives ? '' : 'off'}"></i>`).join(''); }
+function updateHud() {
+  $('time').textContent = S.play.toFixed(1).padStart(5, '0') + ' s';
+  $('spd').textContent = String(Math.round(S.speed * 14)).padStart(3, '0') + ' km/h';
+  $('score').textContent = String(Math.floor(S.dist) + S.bonus).padStart(5, '0') + (S.combo > 1 ? `  ×${S.combo}` : '');
+}
+function setLevel(i) {
+  const prev = LEVELS[S.level].pat; S.level = i; S.lvStart = S.play;
+  U.uPatA.value = prev; U.uPatB.value = LEVELS[i].pat; U.uMix.value = 0;
+  $('hudC').textContent = String(i + 1).padStart(2, '0') + ' ' + LEVELS[i].name;
+  S.nextFreeze = i < LEVELS.length - 1 ? S.play + LEVEL_DUR : S.play + FINAL_EVERY;
   gyro0 = gyro ? { ...gyro } : null;
+  band(i);
 }
 
-/* ---------------- game flow ---------------- */
+/* ================= flow ================= */
 async function start() {
   if (!ac) initAudio(); else ac.resume && ac.resume();
   if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
     try { await DeviceOrientationEvent.requestPermission(); } catch (e) {}
   }
-  S = newState(); S.running = true; resetRings();
+  S = newState(); S.phase = 'play';
+  U.uPatA.value = U.uPatB.value = 0; U.uMix.value = 1;
+  resetRings(); trail.length = 0;
   $('intro').classList.add('hide'); $('result').classList.add('hide'); $('stop').style.display = 'block';
-  ['hudL', 'hudC'].forEach(id => $(id).style.opacity = 1);
-  updateHud(); enterLevel(0);
+  renderLives(); updateHud(); setLevel(0);
 }
 $('go').onclick = start; $('again').onclick = start;
 $('stop').onclick = () => end('stop');
 
 let beatTimer = null;
 function freeze() {
-  S.frozen = true; engine(false); dragging = false;
-  $('fms').value = S.fmsLog[S.fmsLog.length - 1].v; $('fmsVal').textContent = $('fms').value;
-  $('maeHint').style.display = S.firstFreeze ? 'block' : 'none'; S.firstFreeze = false;
-  $('sheet').classList.add('open');
+  S.phase = 'null'; S.freezes++; S.calm = false; engine(false); dragging = false; aim = null;
+  S.nullMode = S.fx.roll > 0.5 ? 'rot' : 'exp'; S.nullV = S.nullR = 0; U.uAim.value = 0;
+  $('nullS').value = 0;
+  const rot = S.nullMode === 'rot';
+  $('pA').textContent = '别移开视线。';
+  $('pB').textContent = rot ? '画面是静止的。可它是不是在往反方向转？' : '画面是静止的。可它是不是在往里缩？';
+  $('nullL').textContent = rot ? '← 逆时针转' : '← 让它往里'; $('nullR').textContent = rot ? '顺时针转 →' : '让它往外 →';
+  $('prompt').style.opacity = 1; $('fix').style.opacity = 1; $('fixT').style.opacity = 0;
+  $('nullSheet').classList.add('open');
   sfx.beat(); beatTimer = setInterval(sfx.beat, 950);
 }
-$('fms').oninput = e => { $('fmsVal').textContent = e.target.value; const v = +e.target.value; $('fmsVal').style.color = v >= 15 ? '#ff6b8a' : v >= 8 ? '#ffd36e' : '#eef3ff'; };
+$('nullS').oninput = e => {
+  const s = +e.target.value / 100, q = Math.sign(s) * s * s;
+  if (S.nullMode === 'rot') S.nullR = q * 0.7; else S.nullV = q * 10;
+};
+$('nullOk').onclick = () => {
+  S.phase = 'reveal'; $('nullSheet').classList.remove('open'); $('prompt').style.opacity = 0;
+  const first = S.maes.length === 0;
+  let a, n, unit, b, p;
+  if (S.nullMode === 'exp') {
+    const kmh = Math.round(S.nullV * 14); S.maes.push({ type: 'exp', v: kmh });
+    unit = 'km/h'; n = Math.abs(kmh);
+    if (Math.abs(kmh) < 4) { a = '你的大脑几乎没有'; b = '倒车。'; p = '基本没有后效。下一关最后几秒，试着一直盯住中间的十字。'; }
+    else if (kmh > 0) { a = '你的大脑正在以'; b = '倒车。'; p = first
+      ? '刚才画面其实是静止的，是你自己看到了收缩。连续几十秒的高速前进，让大脑里负责"向前"的神经元疲劳了，于是静止的东西看起来在往后退。这叫运动后效（MAE）。'
+      : '你又一次把静止的画面看成了收缩。'; }
+    else { a = '你的大脑在以'; b = '继续往前冲。'; p = '方向和大多数人相反，很少见。'; }
+  } else {
+    const dps = Math.round(S.nullR / DEG); S.maes.push({ type: 'rot', v: dps });
+    unit = '°/秒'; n = Math.abs(dps);
+    if (Math.abs(dps) < 2) { a = '你的世界几乎没有'; b = '反转。'; p = '基本没有旋转后效。下次试着一直盯住中间的十字。'; }
+    else { a = '在你的大脑里，世界正以'; b = '反向旋转。'; p = '画面其实一动不动。刚才持续的旋转让大脑适应了，停下来之后就"补偿过头"，看到了反方向的旋转。'; }
+  }
+  S.nullV = S.nullR = 0;
+  $('revA').textContent = a; $('revN').innerHTML = n + `<small>${unit}</small>`; $('revB').textContent = b;
+  $('revP').textContent = p + ' ' + REAL_WORLD[(S.freezes - 1) % REAL_WORLD.length];
+  $('fms').value = S.fmsLog[S.fmsLog.length - 1].v; $('fmsVal').textContent = $('fms').value;
+  $('revSheet').classList.add('open'); sfx.reveal();
+};
+$('fms').oninput = e => { $('fmsVal').textContent = e.target.value; $('fmsVal').style.color = +e.target.value >= 15 ? '#ff4a1c' : ''; };
 $('fmsOk').onclick = () => {
   const v = +$('fms').value; S.fmsLog.push({ t: S.play, v }); S.maxFms = Math.max(S.maxFms, v);
-  $('sheet').classList.remove('open'); clearInterval(beatTimer);
+  $('revSheet').classList.remove('open'); clearInterval(beatTimer); $('fix').style.opacity = 0;
   if (v >= 15) { end('fms'); return; }
-  S.frozen = false; S.nextFms = S.play + 30;
+  countdown();
 };
+function countdown() {
+  S.phase = 'count'; S.count = 3; S.pulseT = 0;
+  clearAhead(45);
+  const c = $('count'); c.style.opacity = 1;
+  const step = () => {
+    if (S.phase !== 'count') return;
+    if (S.count > 0) { c.textContent = S.count; sfx.tick(false); S.count--; setTimeout(step, 600); }
+    else {
+      c.textContent = '走'; sfx.tick(true); setTimeout(() => c.style.opacity = 0, 350);
+      S.phase = 'play'; S.inv = 1.6;
+      if (S.level < LEVELS.length - 1) setLevel(S.level + 1); else { S.lvStart = S.play; S.nextFreeze = S.play + FINAL_EVERY; band(S.level); }
+    }
+  };
+  step();
+}
 
-const RANKS = [[40, '晕车星人'], [80, '普通乘客'], [130, '老水手'], [190, '宇航员'], [1e9, '战斗机飞行员']];
+const RANKS = [[45, '晕车星人'], [95, '普通乘客'], [150, '老水手'], [210, '宇航员'], [1e9, '战斗机飞行员']];
 function end(reason) {
-  if (!S.running) return;
-  S.running = false; S.frozen = false; engine(false); clearInterval(beatTimer);
-  $('sheet').classList.remove('open'); $('stop').style.display = 'none';
+  if (S.phase === 'demo' || S.phase === 'end') return;
+  S.phase = 'end'; engine(false); clearInterval(beatTimer);
+  ['nullSheet', 'revSheet'].forEach(id => $(id).classList.remove('open'));
+  ['prompt', 'fix', 'fixT', 'count'].forEach(id => $(id).style.opacity = 0);
+  $('stop').style.display = 'none';
   const t = S.play; if (S.fmsLog[S.fmsLog.length - 1].t < t - 1) S.fmsLog.push({ t, v: S.fmsLog[S.fmsLog.length - 1].v });
   const idx = Math.round(t * 10 * (1 + (20 - S.maxFms) / 40) + S.near * 15);
-  $('rReason').textContent = { lives: '护盾耗尽', fms: '晕动值过高，强制休息', stop: '你按下了停止' }[reason];
+  $('rReason').textContent = { lives: '撞毁', fms: '强制休息', stop: '主动停止' }[reason];
   $('rRank').textContent = RANKS.find(r => t < r[0])[1];
   let best = 0; try { best = +(localStorage.getItem('vertigo_best') || 0); if (idx > best) localStorage.setItem('vertigo_best', idx); } catch (e) {}
-  $('rIdx').textContent = `抗晕指数 ${idx}` + (idx > best ? '  · 新纪录！' : `  · 最佳 ${best}`);
-  $('rTime').textContent = t.toFixed(1) + ' s'; $('rLevel').textContent = (S.level + 1) + ' / ' + LEVELS.length;
+  $('rIdx').textContent = `抗晕指数 ${idx}` + (idx > best ? '  ·  新纪录' : `  ·  最佳 ${best}`);
+  $('rTime').textContent = t.toFixed(1) + 's'; $('rLevel').textContent = (S.level + 1) + '/' + LEVELS.length;
   $('rFms').textContent = S.maxFms; $('rNear').textContent = S.near;
+  const ex = S.maes.filter(m => m.type === 'exp').sort((a, b) => b.v - a.v)[0];
+  const ro = S.maes.filter(m => m.type === 'rot').sort((a, b) => Math.abs(b.v) - Math.abs(a.v))[0];
+  if (ex && ex.v >= 4) { $('rMae').textContent = ex.v + ' km/h'; $('rMaeT').textContent = '你的大脑曾在一张静止的画面里以这个速度倒车。'; }
+  else if (ro && Math.abs(ro.v) >= 2) { $('rMae').textContent = Math.abs(ro.v) + ' °/秒'; $('rMaeT').textContent = '静止的世界在你眼里曾以这个速度反向旋转。'; }
+  else { $('rMae').textContent = '—'; $('rMaeT').textContent = S.maes.length ? '这局几乎没测到后效。下次冻结前一直盯住十字。' : '撑到第一关结束，就能看到自己的后效。'; }
   drawSpark(); $('result').classList.remove('hide');
 }
 function drawSpark() {
-  const c = $('spark'), g = c.getContext('2d'), w = c.width, h = c.height, L = S.fmsLog, T = Math.max(30, L[L.length - 1].t);
-  g.clearRect(0, 0, w, h);
-  g.strokeStyle = 'rgba(255,255,255,.12)'; g.lineWidth = 1;
-  for (const v of [0, 10, 20]) { const y = h - 12 - v / 20 * (h - 24); g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.stroke(); }
-  for (let i = 1; i < LEVELS.length; i++) { const x = i * LEVEL_DUR / T * w; if (x > w) break; g.strokeStyle = 'rgba(255,255,255,.06)'; g.beginPath(); g.moveTo(x, 0); g.lineTo(x, h); g.stroke(); }
-  const grd = g.createLinearGradient(0, h, 0, 0); grd.addColorStop(0, '#4fe3ff'); grd.addColorStop(0.5, '#ffd36e'); grd.addColorStop(1, '#ff4f7a');
-  g.strokeStyle = grd; g.lineWidth = 4; g.lineJoin = 'round'; g.beginPath();
-  L.forEach((p, i) => { const x = p.t / T * (w - 8) + 4, y = h - 12 - p.v / 20 * (h - 24); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.stroke();
-  g.fillStyle = '#fff'; L.forEach(p => { g.beginPath(); g.arc(p.t / T * (w - 8) + 4, h - 12 - p.v / 20 * (h - 24), 5, 0, 7); g.fill(); });
+  const c = $('spark'), g = c.getContext('2d'), w = c.width, h = c.height, L = S.fmsLog, T = Math.max(LEVEL_DUR, L[L.length - 1].t);
+  const X = t => 30 + t / T * (w - 44), Y = v => h - 26 - v / 20 * (h - 44);
+  g.clearRect(0, 0, w, h); g.font = '500 18px JetBrains Mono, monospace'; g.fillStyle = '#141210';
+  g.strokeStyle = 'rgba(20,18,16,.18)'; g.lineWidth = 1.5;
+  for (const v of [0, 10, 20]) { g.beginPath(); g.moveTo(30, Y(v)); g.lineTo(w, Y(v)); g.stroke(); g.fillText(v, 0, Y(v) + 6); }
+  g.lineWidth = 5; g.strokeStyle = '#141210'; g.lineJoin = 'round'; g.beginPath();
+  L.forEach((p, i) => i ? g.lineTo(X(p.t), Y(p.v)) : g.moveTo(X(p.t), Y(p.v))); g.stroke();
+  g.fillStyle = '#ff4a1c'; L.forEach(p => g.fillRect(X(p.t) - 7, Y(p.v) - 7, 14, 14));
+  g.fillStyle = '#141210'; g.fillText('时间 →', w - 80, h - 2);
 }
-function updateHud() {
-  $('lives').textContent = '♥'.repeat(Math.max(0, S.lives)) + '♡'.repeat(Math.max(0, 3 - S.lives));
-  $('time').textContent = S.play.toFixed(1) + ' s  ·  ' + Math.round(S.speed * 14) + ' km/h';
-  $('score').textContent = (Math.floor(S.dist) + S.bonus) + ' 分' + (S.combo > 1 ? `  ×${S.combo}` : '');
-}
-addEventListener('visibilitychange', () => { if (document.hidden && S.running && !S.frozen) freeze(); });
+addEventListener('visibilitychange', () => { if (document.hidden && LIVE()) freeze(); });
 
-/* ---------------- collision ---------------- */
+/* ================= collision ================= */
 function judge(r) {
+  if (!r.blocked.some(Boolean)) return;
   const p = ((S.phi % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
-  const slot = Math.floor(p / SLOT) % SLOTS, fr = (p - slot * SLOT) / DEG; // degrees into the slot
-  const L = r.blocked[(slot + SLOTS - 1) % SLOTS], Rr = r.blocked[(slot + 1) % SLOTS];
-  const hit = r.blocked[slot] || (L && fr < 3) || (Rr && 30 - fr < 3);
+  const slot = Math.floor(p / SLOT) % SLOTS, fr = (p - slot * SLOT) / DEG;
+  const L = r.blocked[(slot + SLOTS - 1) % SLOTS], R = r.blocked[(slot + 1) % SLOTS];
+  const hit = r.blocked[slot] || (L && fr < 3.5) || (R && 30 - fr < 3.5);
   if (hit) {
-    if (S.inv > 0 || S.play < 8) return;
-    S.lives--; S.combo = 0; S.inv = 1.2; S.shake = 0.45; S.slow = 0.55; sfx.hit();
-    $('hit').style.opacity = 1; setTimeout(() => $('hit').style.opacity = 0, 160);
+    if (S.inv > 0) return;
+    S.lives--; S.combo = 0; S.inv = 1.3; S.shake = 0.5; S.slow = 0.5; S.hitStop = 0.1; renderLives(); sfx.hit();
+    canvas.classList.add('inv'); setTimeout(() => canvas.classList.remove('inv'), 70);
     navigator.vibrate && navigator.vibrate(90);
-    if (S.lives <= 0) setTimeout(() => end('lives'), 250);
-  } else if ((L && fr < 10) || (Rr && 30 - fr < 10)) {
-    S.near++; S.combo++; S.bonus += 40 * S.combo; S.fovKick = 9; sfx.near();
-    pop(S.combo > 1 ? `擦边 ×${S.combo}` : '擦边！', hex(LEVELS[Math.max(0, S.level)].col));
-  } else S.combo = 0;
+    if (S.lives <= 0) setTimeout(() => end('lives'), 300);
+  } else if ((L && fr < 11) || (R && 30 - fr < 11)) {
+    S.near++; S.combo++; S.bonus += 40 * S.combo; S.fovKick = 7; sfx.near(Math.min(S.combo, 8));
+    pop(S.combo > 1 ? `擦边 ×${S.combo}` : '擦边');
+  } else { S.combo = 0; sfx.pass(); }
 }
 
-/* ---------------- loop ---------------- */
-const clock = new THREE.Clock(); const target = new THREE.Vector3(); let demoT = 0;
-function bendAt(z, out) { const b = tunnelMat.uniforms.uBend.value; out.x = b.x * z * z; out.y = b.y * z * z; return out; }
-const tmpB = { x: 0, y: 0 };
+/* ================= main loop ================= */
+const clock = new THREE.Clock(), target = new THREE.Vector3(), tmpB = { x: 0, y: 0 }, endPt = new THREE.Vector3();
+function bendAt(z, o) { const b = U.uBend.value; o.x = b.x * z * z; o.y = b.y * z * z; return o; }
+let demoT = 0;
 
 function frame() {
-  const dt = Math.min(clock.getDelta(), 1 / 30);
-  const live = S.running && !S.frozen;
+  let dt = Math.min(clock.getDelta(), 1 / 30);
   S.t += dt;
+  if (S.hitStop > 0) { S.hitStop -= dt; dt = 0; }
+  const live = LIVE(), moving = live || S.phase === 'demo';
 
   if (live) {
-    S.play += dt; S.lvT += dt;
-    const want = Math.min(LEVELS.length - 1, Math.floor(S.play / LEVEL_DUR));
-    if (want !== S.level) enterLevel(want);
-    if (S.play >= S.nextFms) freeze();
-    // fx ramp toward level targets
+    S.play += dt;
+    const calm = S.play > S.nextFreeze - CALM;
+    if (calm && !S.calm) { S.calm = true; clearBeyond(S.speed * 1.4); }
+    if (S.play >= S.nextFreeze) freeze();
     const goal = LEVELS[S.level].fx;
     for (const k in S.fx) S.fx[k] += ((goal[k] || 0) - S.fx[k]) * Math.min(1, dt * 0.6);
-    // controls
-    if (keys.ArrowLeft || keys.a || keys.A) S.phiT -= 4.2 * dt;
-    if (keys.ArrowRight || keys.d || keys.D) S.phiT += 4.2 * dt;
-  } else if (!S.running) {
-    demoT += dt; S.phiT = -Math.PI / 2 + Math.sin(demoT * 0.8) * 1.2;
-    for (const k in S.fx) S.fx[k] *= 0.97;
+    if (keys.ArrowLeft || keys.a || keys.A) S.phiT -= 4.5 * dt;
+    if (keys.ArrowRight || keys.d || keys.D) S.phiT += 4.5 * dt;
+  } else if (S.phase === 'demo') {
+    demoT += dt; S.phiT = -Math.PI / 2 + Math.sin(demoT * 0.9) * 1.3 + Math.sin(demoT * 2.3) * 0.25;
   }
-  S.phi += (S.phiT - S.phi) * Math.min(1, dt * 24);
+  U.uMix.value = Math.min(1, U.uMix.value + dt / 1.2);
+
+  // ship: spring with a little overshoot
+  if (moving) {
+    const k = 260, c = 2 * Math.sqrt(k) * 0.78;
+    const acc = k * wrapA(S.phiT - S.phi) - c * S.omega;
+    S.omega = THREE.MathUtils.clamp(S.omega + acc * dt, -15, 15);
+    S.phi += S.omega * dt;
+  } else S.omega *= 0.8;
 
   // speed
   const d = difficulty();
-  let base = S.running ? 34 + 50 * d : 30;
-  if (S.fx.surge > 0.01) {
-    if ((S.surgeClock -= dt) <= 0) { S.surgeT = Math.random() < 0.5 ? 0.5 + Math.random() * 0.2 : 1.5 + Math.random() * 0.5; S.surgeClock = 1.2 + Math.random() * 2.2; if (S.surgeT > 1.3) S.fovKick = 14; }
+  const base = S.phase === 'demo' ? 26 : 34 + 50 * d;
+  if (S.fx.surge > 0.01 && moving) {
+    if ((S.surgeClock -= dt) <= 0) { S.surgeT = Math.random() < 0.5 ? 0.5 + Math.random() * 0.2 : 1.5 + Math.random() * 0.5; S.surgeClock = 1.2 + Math.random() * 2.2; if (S.surgeT > 1.3) S.fovKick = 13; }
     S.surge += (S.surgeT - S.surge) * Math.min(1, dt * 7);
-  } else S.surge += (1 - S.surge) * dt * 2;
+  } else S.surge += (1 - S.surge) * Math.min(1, dt * 2);
   S.slow += (1 - S.slow) * dt * 1.5;
-  const surgeMul = 1 + (S.surge - 1) * S.fx.surge;
-  S.speed = S.frozen ? 0 : base * surgeMul * S.slow;
+  S.speed = moving ? base * (1 + (S.surge - 1) * S.fx.surge) * S.slow : 0;
   const v = S.speed;
 
-  if (!S.frozen) {
-    S.dist += v * dt * (S.running ? 1 : 0);
-    tunnelMat.uniforms.uScroll.value += v * dt;
-    tunnelMat.uniforms.uTime.value += dt;
-    // bend
-    const bk = S.fx.bend;
-    tunnelMat.uniforms.uBend.value.set(0.0017 * Math.sin(S.t * 0.33) * bk, 0.0012 * Math.sin(S.t * 0.26 + 2) * bk);
-    // rings
+  // world
+  if (moving) {
+    if (live) S.dist += v * dt;
+    U.uScroll.value += v * dt;
+    U.uBend.value.set(0.0017 * Math.sin(S.t * 0.33) * S.fx.bend, 0.0012 * Math.sin(S.t * 0.26 + 2) * S.fx.bend);
     let minZ = 0; rings.forEach(r => minZ = Math.min(minZ, r.z));
     for (const r of rings) {
       const prev = r.z; r.z += v * dt;
-      if (S.running && !r.judged && prev < SHIP_Z && r.z >= SHIP_Z) { r.judged = true; judge(r); }
-      if (r.z > 3) { r.z = minZ - spacing(); minZ = r.z; r.judged = false; makePattern(r); }
+      if (live && !r.judged && prev < SHIP_Z && r.z >= SHIP_Z) { r.judged = true; judge(r); }
+      if (r.z > SHIP_Z + 1.6) { r.z = minZ - spacing(); minZ = r.z; r.judged = false; makePattern(r); }
     }
     if (S.inv > 0) S.inv -= dt;
     if (live) updateHud();
+  } else if (S.phase === 'null') {        // nulling: the player adds real motion to cancel the illusion
+    U.uScroll.value += S.nullV * dt;
+    S.roll += S.nullR * dt;
   }
-  if (eng && live) engine(true, v);
+  if (live) engine(true, v);
 
-  // place rings
+  // rings + "you will hit this" warning
+  const showWorld = S.phase !== 'null' && S.phase !== 'reveal';
+  const pSlot = Math.floor((((S.phi % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2)) / SLOT) % SLOTS;
+  let next = null; for (const r of rings) if (!r.judged && r.z < SHIP_Z && (!next || r.z > next.z) && r.blocked.some(Boolean)) next = r;
   for (const r of rings) {
     bendAt(r.z, tmpB); r.g.position.set(tmpB.x, tmpB.y, r.z);
-    const far = THREE.MathUtils.smoothstep(r.z, -200, -130), near = 1 - THREE.MathUtils.smoothstep(r.z, SHIP_Z + 0.3, SHIP_Z + 2.5);
-    r.mat.opacity = 0.78 * far * near; r.emat.opacity = far * near; r.g.visible = r.mat.opacity > 0.01;
+    r.g.visible = showWorld && r.z < SHIP_Z + 1.2;
+    const warnOn = r === next && S.fx.blind < 0.5 && live;
+    r.segs.forEach((m, i) => m.material = (warnOn && i === pSlot) ? WARN : NORMAL);
   }
-  // streaks
-  const len = THREE.MathUtils.clamp(v * 0.05, 0.15, 5);
-  for (let i = 0; i < SN; i++) {
-    let z = sBase[i * 3 + 2]; if (!S.frozen) { z += v * dt; if (z > 2) z -= LEN; sBase[i * 3 + 2] = z; }
-    const x = sBase[i * 3], y = sBase[i * 3 + 1];
-    const j = i * 6; bendAt(z, tmpB); sPos[j] = x + tmpB.x; sPos[j + 1] = y + tmpB.y; sPos[j + 2] = z;
-    bendAt(z - len, tmpB); sPos[j + 3] = x + tmpB.x; sPos[j + 4] = y + tmpB.y; sPos[j + 5] = z - len;
-  }
-  sGeo.attributes.position.needsUpdate = true;
-  streaks.material.opacity = 0.25 + Math.min(0.5, v / 120);
-  bendAt(-200, tmpB); endGlow.position.set(tmpB.x, tmpB.y, -200);
 
-  // ship + orbit
+  // ship, orbit, aim tick
   bendAt(SHIP_Z, tmpB);
-  ship.position.set(Math.cos(S.phi) * RP + tmpB.x, Math.sin(S.phi) * RP + tmpB.y, SHIP_Z);
-  ship.rotation.z = S.phi + Math.PI / 2;
-  ship.visible = S.inv <= 0 || Math.floor(S.t * 12) % 2 === 0;
-  orbit.position.set(tmpB.x, tmpB.y, 0);
+  shipRoot.position.set(Math.cos(S.phi) * RP + tmpB.x, Math.sin(S.phi) * RP + tmpB.y, SHIP_Z);
+  shipRoot.rotation.z = S.phi - Math.PI / 2;
+  shipBank.rotation.y = THREE.MathUtils.clamp(-S.omega * 0.09, -0.85, 0.85);
+  const sq = Math.min(0.3, Math.abs(S.omega) * 0.025); shipBank.scale.set(1 + sq, 1 - sq * 0.6, 1);
+  shipRoot.visible = showWorld && (S.inv <= 0 || Math.floor(S.t * 14) % 2 === 0 || S.phase === 'count');
+  orbit.position.set(tmpB.x, tmpB.y, 0); orbit.visible = showWorld; orbit.material.opacity = 0.32 * (1 - S.fx.blind);
+  const aiming = aim && live;
+  tick.material.opacity += ((aiming && S.fx.blind < 0.5 ? 0.9 : 0) - tick.material.opacity) * Math.min(1, dt * 12);
+  tick.position.set(Math.cos(S.phiT) * RP + tmpB.x, Math.sin(S.phiT) * RP + tmpB.y, SHIP_Z); tick.rotation.z = S.phiT - Math.PI / 2;
+  const pulsing = S.phase === 'count' || (live && S.inv > 0 && S.play - S.lvStart < 2);
+  if (pulsing) { S.pulseT += dt; const k = (S.pulseT * 1.6) % 1; pulse.scale.setScalar(0.6 + k * 2.2); pulse.material.opacity = 1 - k; }
+  pulse.visible = pulsing && showWorld; pulse.position.copy(shipRoot.position);
 
-  // ---- camera: the motion-sickness machinery ----
-  if (!S.frozen) {
-    S.roll += 0.62 * S.fx.roll * dt;                                       // continuous roll vection
+  // wake trail
+  if (moving) {
+    for (const p of trail) p.z += v * dt;
+    trail.unshift({ phi: S.phi, z: SHIP_Z + 0.3 });
+    while (trail.length > TN || (trail.length && trail[trail.length - 1].z > SHIP_Z + 1.9)) trail.pop();
   }
-  const w = S.fx.wobble, tw = S.frozen ? 0 : S.t, f02 = Math.PI * 2 * 0.2;
-  const wobX = Math.sin(tw * Math.PI * 2 * 0.17 + 1) * 1.0 * w, wobY = Math.sin(tw * f02) * 1.3 * w;   // ~0.2 Hz sway
-  const wobRoll = Math.sin(tw * f02 + 0.7) * 0.28 * w;
+  for (let i = 0; i < TN; i++) {
+    const p = trail[Math.min(i, trail.length - 1)] || { phi: S.phi, z: SHIP_Z };
+    const w = 0.05 * (1 - i / Math.max(2, trail.length));
+    bendAt(p.z, tmpB);
+    const j = i * 6, r = RP + 0.02;
+    tPos[j] = Math.cos(p.phi - w) * r + tmpB.x; tPos[j + 1] = Math.sin(p.phi - w) * r + tmpB.y; tPos[j + 2] = p.z;
+    tPos[j + 3] = Math.cos(p.phi + w) * r + tmpB.x; tPos[j + 4] = Math.sin(p.phi + w) * r + tmpB.y; tPos[j + 5] = p.z;
+  }
+  tGeo.attributes.position.needsUpdate = true; trailMesh.visible = showWorld && trail.length > 2;
+
+  // camera: the motion-sickness machinery
+  if (moving) { S.roll += 0.62 * S.fx.roll * dt; S.tw = S.t; }
+  const w = S.fx.wobble, tw = S.tw, f02 = Math.PI * 2 * 0.2;
+  const wobX = Math.sin(tw * Math.PI * 2 * 0.17 + 1) * w, wobY = Math.sin(tw * f02) * 1.3 * w, wobRoll = Math.sin(tw * f02 + 0.7) * 0.28 * w;
   let shX = 0, shY = 0; if (S.shake > 0) { S.shake -= dt; shX = (Math.random() - 0.5) * S.shake; shY = (Math.random() - 0.5) * S.shake; }
   camera.position.set(wobX + shX, wobY + shY, 0);
   bendAt(-28, tmpB); target.set(tmpB.x + wobX * 0.3, tmpB.y + wobY * 0.3, -28);
-  camera.up.set(0, 1, 0); camera.lookAt(target);
-  camera.rotateZ(S.roll + wobRoll);
-  if (S.fx.gyro > 0.01 && gyro && gyro0) {                                // visual-vestibular gain mismatch
+  camera.up.set(0, 1, 0); camera.lookAt(target); camera.rotateZ(S.roll + wobRoll);
+  if (S.fx.gyro > 0.01 && gyro && gyro0 && moving) {
     camera.rotateY(-(gyro.g - gyro0.g) * DEG * 0.9 * S.fx.gyro);
     camera.rotateX((gyro.b - gyro0.b) * DEG * 0.9 * S.fx.gyro);
   }
-  S.fovKick *= Math.pow(0.02, dt);
+  if (moving) S.fovKick *= Math.pow(0.02, dt);
   fitCamera(S.fovKick + (S.surge - 1) * 10 * S.fx.surge);
-  if (aim && live) {
-    camera.updateMatrixWorld();
-    ndc.set(aim.x / innerWidth * 2 - 1, -(aim.y / innerHeight) * 2 + 1);
-    ray.setFromCamera(ndc, camera);
+  camera.updateMatrixWorld();
+
+  // aiming: raycast through roll / sway / bends
+  if (aiming) {
+    ndc.set(aim.x / innerWidth * 2 - 1, -(aim.y / innerHeight) * 2 + 1); ray.setFromCamera(ndc, camera);
     if (ray.ray.intersectPlane(shipPlane, hitP)) {
       bendAt(SHIP_Z, tmpB); const dx = hitP.x - tmpB.x, dy = hitP.y - tmpB.y;
-      if (dx * dx + dy * dy > 0.5) S.phiT = S.phi + wrapA(Math.atan2(dy, dx) - S.phi);
+      if (dx * dx + dy * dy > 0.4) S.phiT = S.phi + wrapA(Math.atan2(dy, dx) - S.phi);
     }
   }
+  U.uPhi.value = S.phi;
+  U.uAim.value += ((moving && S.fx.blind < 0.5 ? 1 : 0) - U.uAim.value) * Math.min(1, dt * 4);
 
-  // remove references
-  const blind = S.fx.blind;
-  const hudOp = S.running ? String(1 - 0.92 * blind) : '1';
-  $('hudL').style.opacity = hudOp; $('hudC').style.opacity = hudOp;
-  orbit.material.opacity = 0.16 * (1 - blind);
-  tunnelMat.uniforms.uBright.value = 1 - 0.25 * blind;
+  // fixation cross at the vanishing point
+  bendAt(-150, tmpB); endPt.set(tmpB.x, tmpB.y, -150); const sp = toScreen(endPt);
+  $('fix').style.left = $('fixT').style.left = sp.x + 'px'; $('fix').style.top = $('fixT').style.top = sp.y + 'px';
+  if (LIVE()) { const on = S.calm ? 1 : 0; $('fix').style.opacity = on; $('fixT').style.opacity = on; $('fixT').textContent = '盯住中间  ' + Math.max(1, Math.ceil(S.nextFreeze - S.play)); }
+
+  $('hud').style.opacity = S.phase === 'demo' ? 0 : 1 - 0.92 * S.fx.blind;
 
   renderer.render(scene, camera);
   requestAnimationFrame(frame);
 }
-resetRings();
-try { const b = +(localStorage.getItem('vertigo_best') || 0); if (b) $('bestLine').textContent = '你的最佳抗晕指数：' + b; } catch (e) {}
+resetRings(); renderLives();
+try { const b = +(localStorage.getItem('vertigo_best') || 0); if (b) $('bestLine').textContent = '你的最佳抗晕指数  ' + b; } catch (e) {}
 addEventListener('resize', () => { renderer.setSize(innerWidth, innerHeight); fitCamera(); });
 requestAnimationFrame(frame);
 </script>
